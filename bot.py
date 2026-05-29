@@ -11,7 +11,7 @@ from aiogram.filters import CommandStart, Command
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 # --- CONFIGURATION ---
-BOT_TOKEN = "YOUR_BOT_TOKEN_HERE"
+BOT_TOKEN = "8650706516:AAHw04CwFcdy5uvQjeaasHAkr1QL1yTl3ac"
 PROVIDER_TOKEN = "YOUR_RAZORPAY_TOKEN_HERE" # From BotFather
 ADMIN_ID = 123456789 # Replace with your Telegram User ID
 
