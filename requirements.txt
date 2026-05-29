@@ -1,4 +1,19 @@
+# Telegram Bot APIs
+pyTelegramBotAPI==4.14.0
+Telethon==1.33.1
+
+# Web Server & Keep-Alive
 Flask==3.0.0
-Telethon==1.32.1
-psutil==5.9.6
+Werkzeug==3.0.1
+
+# System & Process Management
+psutil==5.9.8
+
+# Network Requests
+requests==2.31.0
+
+# Security & Cryptography (Required by Telethon)
+cryptography==41.0.7
+
+# (Optional) For production hosting if you use a WSGI server
 gunicorn==21.2.0
