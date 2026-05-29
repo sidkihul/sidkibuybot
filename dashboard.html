@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dragon Dashboard</title>
+    <!-- Imports Telegram's native Web App script so it runs smoothly inside the app -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        /* A dark animated background to make the glass pop */
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: white;
+        }
+
+        h1 {
+            margin-bottom: 40px;
+            text-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
+        }
+
+        .menu-container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            width: 80%;
+            max-width: 400px;
+        }
+
+        /* THE GLASS BUTTON CSS */
+        .glass-btn {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            border-radius: 30px;
+            padding: 15px 25px;
+            font-size: 18px;
+            font-weight: bold;
+            color: white;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.3s ease;
+            
+            /* The colorful round glowing outer border */
+            border: 2px solid transparent;
+            background-clip: padding-box;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37),
+                        inset 0 0 0 2px rgba(255, 255, 255, 0.1);
+            position: relative;
+        }
+
+        /* Different colored borders for different buttons */
+        .btn-profile { box-shadow: inset 0 0 0 2px #00f2fe; }
+        .btn-wallet { box-shadow: inset 0 0 0 2px #4facfe; }
+        .btn-buy { box-shadow: inset 0 0 0 2px #ff0844; }
+
+        .glass-btn:hover {
+            background: rgba(255, 255, 255, 0.15);
+            transform: translateY(-2px);
+        }
+    </style>
+</head>
+<body>
+
+    <h1>🐉 Dragon Lair</h1>
+
+    <div class="menu-container">
+        <!-- These buttons currently just act as a beautiful UI -->
+        <div class="glass-btn btn-profile" onclick="showAlert('Profile clicked!')">✨ Profile</div>
+        <div class="glass-btn btn-wallet" onclick="showAlert('Wallet clicked!')">💎 Wallet</div>
+        <div class="glass-btn btn-buy" onclick="showAlert('Store clicked!')">🔥 Buy Bots</div>
+    </div>
+
+    <script>
+        // Initialize Telegram Web App API
+        let tg = window.Telegram.WebApp;
+        tg.expand(); // Makes the web app full screen
+
+        function showAlert(text) {
+            // Uses Telegram's native popup alert
+            tg.showAlert(text);
+            
+            /* 
+            Note: To make these HTML buttons trigger Python aiogram functions 
+            (like sending invoices), you would need to use tg.sendData() 
+            and handle it in Python using F.web_app_data.
+            */
+        }
+    </script>
+</body>
+</html>
