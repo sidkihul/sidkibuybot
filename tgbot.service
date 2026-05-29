@@ -1,0 +1,15 @@
+[Unit]
+Description=Telegram Hosting Management Bot
+After=network.target
+
+[Service]
+Type=simple
+User=root
+# Change /root/mybot to the actual path where your bot.py is stored on the server
+WorkingDirectory=/root/mybot
+ExecStart=/usr/bin/python3 /root/mybot/bot.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
