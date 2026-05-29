@@ -4,7 +4,7 @@ import time
 from datetime import datetime
 from aiogram import Bot, Dispatcher, F
 from aiogram.types import (
-    Message, CallbackQuery, LabeledPrice, PreCheckoutQuery
+    Message, CallbackQuery, LabeledPrice, PreCheckoutQuery, WebAppInfo
 )
 from aiogram.filters import CommandStart, Command, CommandObject
 from aiogram.utils.keyboard import InlineKeyboardBuilder
@@ -15,6 +15,7 @@ from aiogram.fsm.state import State, StatesGroup
 BOT_TOKEN = "8650706516:AAHw04CwFcdy5uvQjeaasHAkr1QL1yTl3ac"
 PROVIDER_TOKEN = "YOUR_RAZORPAY_TOKEN_HERE" # From BotFather
 ADMIN_ID = 2119464081 # Replace with your Telegram User ID
+WEB_APP_URL = "https://your-website.com/dashboard.html" # Replace with your hosted HTML link
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
@@ -30,7 +31,6 @@ class AdminStates(StatesGroup):
 def init_db():
     conn = sqlite3.connect("hosting.db")
     c = conn.cursor()
-    # Added referrer_id for the referral system
     c.execute('''CREATE TABLE IF NOT EXISTS users (user_id INTEGER PRIMARY KEY, wallet REAL DEFAULT 0, is_premium INTEGER DEFAULT 0, referrer_id INTEGER)''')
     c.execute('''CREATE TABLE IF NOT EXISTS active_bots (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, bot_count INTEGER, expires_at REAL)''')
     c.execute('''CREATE TABLE IF NOT EXISTS purchases (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, amount REAL, timestamp REAL)''')
@@ -63,18 +63,23 @@ def set_setting(key, value):
 # --- REUSABLE MENUS & NAVIGATION ---
 def get_main_menu(user_id):
     builder = InlineKeyboardBuilder()
-    builder.button(text="🔥 Profile & Stats 🔥", callback_data="profile")
-    builder.button(text="🐉 Dragon Wallet 🐉", callback_data="wallet")
-    builder.button(text="⚡ Buy Hosted Bots ⚡", callback_data="buy_bots")
-    builder.button(text="🔗 Earn Free Balance 🔗", callback_data="referral")
-    builder.button(text="📜 Purchase History", callback_data="history")
+    
+    # The Web App Button
+    builder.button(text="✨ Open Glass Dashboard ✨", web_app=WebAppInfo(url=WEB_APP_URL))
+    
+    # Standard Fallback Buttons
+    builder.button(text="🔥 Profile", callback_data="profile")
+    builder.button(text="🐉 Dragon Wallet", callback_data="wallet")
+    builder.button(text="⚡ Buy Hosted Bots", callback_data="buy_bots")
+    builder.button(text="🔗 Earn Free Balance", callback_data="referral")
+    builder.button(text="📜 History", callback_data="history")
     builder.button(text="📞 Support", url="https://t.me/your_admin_handle")
     
     if user_id == ADMIN_ID:
         builder.button(text="🛠️ Admin Dashboard ⚙️", callback_data="admin_panel")
-        builder.adjust(2, 1, 1, 2, 1) 
+        builder.adjust(1, 2, 2, 2, 1) 
     else:
-        builder.adjust(2, 1, 1, 2)
+        builder.adjust(1, 2, 2, 2)
         
     return builder.as_markup()
 
@@ -94,33 +99,29 @@ async def safe_menu_edit(callback: CallbackQuery, text: str, reply_markup):
         await callback.message.delete()
         await callback.message.answer(text, reply_markup=reply_markup, parse_mode="Markdown")
 
-# --- CORE NAVIGATION (WITH REFERRAL LOGIC) ---
+# --- CORE NAVIGATION (WITH REFERRALS) ---
 @dp.message(CommandStart())
 async def start_cmd(message: Message, command: CommandObject, state: FSMContext):
     await state.clear()
     user_id = message.from_user.id
     
-    # Check if user already exists
     existing_user = get_db_value("SELECT user_id FROM users WHERE user_id = ?", (user_id,))
     
     if not existing_user:
         referrer_id = None
-        # Handle referral logic if they clicked an invite link
         if command.args and command.args.startswith("ref_"):
             try:
                 referrer_id = int(command.args.split("_")[1])
-                if referrer_id != user_id: # Can't refer yourself
-                    # Give the referrer 10 INR bonus
+                if referrer_id != user_id:
                     execute_db("UPDATE users SET wallet = wallet + 10 WHERE user_id = ?", (referrer_id,))
                     try:
                         await bot.send_message(referrer_id, "🎉 **New Referral!**\nSomeone joined using your link. ₹10 has been added to your Dragon Wallet!", parse_mode="Markdown")
                     except Exception: pass
             except ValueError:
                 pass
-        
         execute_db("INSERT INTO users (user_id, referrer_id) VALUES (?, ?)", (user_id, referrer_id))
     
-    caption = "🐉 **Welcome to the Dragon Hosting Lair!**\n\nCommand your bots with premium server power. Select an option below."
+    caption = "🐉 **Welcome to the Dragon Hosting Lair!**\n\nClick the ✨ **Open Glass Dashboard** ✨ button below to launch the premium interface, or use the quick menu."
     video_id = get_setting("menu_video")
     
     if video_id:
@@ -131,7 +132,7 @@ async def start_cmd(message: Message, command: CommandObject, state: FSMContext)
 @dp.callback_query(F.data == "main_menu")
 async def back_to_main(callback: CallbackQuery, state: FSMContext):
     await state.clear()
-    caption = "🐉 **Main Menu**\n\nCommand your bots with premium server power. Select an option below."
+    caption = "🐉 **Main Menu**\n\nClick the ✨ **Open Glass Dashboard** ✨ button below to launch the premium interface, or use the quick menu."
     video_id = get_setting("menu_video")
     
     await callback.message.delete()
@@ -158,7 +159,7 @@ async def show_wallet(callback: CallbackQuery):
     user = get_db_value("SELECT wallet FROM users WHERE user_id = ?", (callback.from_user.id,))
     text = (f"💰 **Dragon Wallet**\n\n"
             f"**Current Balance:** ₹{user[0]:.2f}\n\n"
-            f"*(Earn free balance using your referral link, or use direct UPI at checkout!)*")
+            f"*(Earn free balance using your referral link!)*")
     await safe_menu_edit(callback, text, get_back_button())
 
 @dp.callback_query(F.data == "referral")
@@ -251,10 +252,8 @@ async def admin_panel_callback(callback: CallbackQuery, state: FSMContext):
 @dp.callback_query(F.data == "admin_broadcast")
 async def admin_broadcast(callback: CallbackQuery, state: FSMContext):
     if callback.from_user.id != ADMIN_ID: return
-    
     builder = InlineKeyboardBuilder()
     builder.button(text="❌ Cancel", callback_data="admin_panel")
-    
     await safe_menu_edit(callback, "📢 **Broadcast Message**\n\nSend the message (text, image, or video) you want to broadcast to ALL users.", builder.as_markup())
     await state.set_state(AdminStates.waiting_for_broadcast)
 
@@ -270,12 +269,11 @@ async def process_broadcast(message: Message, state: FSMContext):
         try:
             await message.send_copy(chat_id=user[0])
             success += 1
-            await asyncio.sleep(0.05) # Prevent hitting rate limits
+            await asyncio.sleep(0.05) 
         except Exception:
             failed += 1
             
     await state.clear()
-    
     builder = InlineKeyboardBuilder()
     builder.button(text="🔙 Back to Admin", callback_data="admin_panel")
     await message.answer(f"✅ **Broadcast Complete**\nSuccess: {success}\nFailed (Blocked Bot): {failed}", reply_markup=builder.as_markup())
@@ -298,7 +296,6 @@ async def admin_add_bal_id(message: Message, state: FSMContext):
         
         builder = InlineKeyboardBuilder()
         builder.button(text="❌ Cancel", callback_data="admin_panel")
-        
         await message.answer("Enter the **amount (₹)** to add to their wallet:", reply_markup=builder.as_markup())
         await state.set_state(AdminStates.waiting_for_amount_balance)
     except ValueError:
@@ -316,10 +313,8 @@ async def admin_add_bal_amount(message: Message, state: FSMContext):
         
         builder = InlineKeyboardBuilder()
         builder.button(text="🔙 Back to Admin", callback_data="admin_panel")
-        
         await message.answer(f"✅ Successfully added ₹{amount} to User ID `{target_user}`.", reply_markup=builder.as_markup())
         
-        # Notify the user
         try:
             await bot.send_message(target_user, f"💰 **Admin added funds to your account!**\n₹{amount} has been added to your Dragon Wallet.")
         except Exception: pass
@@ -400,8 +395,11 @@ async def check_expirations():
 async def main():
     init_db()
     asyncio.create_task(check_expirations())
-    print("Bot is running in Dragon Mode...")
+    print("Bot running with Web App Support...")
     await dp.start_polling(bot)
+
+if __name__ == "__main__":
+    asyncio.run(main())
 
 if __name__ == "__main__":
     asyncio.run(main())
