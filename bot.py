@@ -14,7 +14,7 @@ from aiogram.fsm.state import State, StatesGroup
 # --- CONFIGURATION ---
 BOT_TOKEN = "8650706516:AAHw04CwFcdy5uvQjeaasHAkr1QL1yTl3ac"
 PROVIDER_TOKEN = "YOUR_RAZORPAY_TOKEN_HERE" # From BotFather
-ADMIN_ID = 123456789 # Replace with your Telegram User ID
+ADMIN_ID = 2119464081 # Replace with your Telegram User ID
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
