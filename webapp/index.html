@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SID HOSTING — Next-Gen Userbot Node</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+    <div class="video-bg-container">
+        <video id="bg-video" autoplay loop muted playsinline>
+            <source src="https://cdn.pixabay.com/video/2020/05/25/40131-424785461_large.mp4" type="video/mp4">
+        </video>
+        <div class="video-overlay"></div>
+    </div>
+
+    <div id="toast-container" class="toast-container"></div>
+
+    <div class="app-container" id="main-app">
+
+        <div id="view-deploy" class="view-section active">
+            <div class="glass-panel" id="step1-script">
+                <div class="panel-header">
+                    <h2 class="gradient-text">Cloud Deployment Engine</h2>
+                    <span class="badge premium-badge" style="font-size: 0.7rem; background: rgba(0, 242, 254, 0.1); border: 1px solid #00f2fe; padding: 4px 8px; border-radius: 12px; color: #00f2fe;">Node v4.1</span>
+                </div>
+                <p class="status-text">Enter your phone number connected to Telegram and write or upload your specialized userbot script.</p>
+                
+                <div class="input-group" style="margin-bottom: 15px;">
+                    <label class="field-label" style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 5px; display: block;">Telegram Phone Number</label>
+                    <input type="tel" id="phoneInput" class="glass-input" placeholder="e.g., +1234567890" autocomplete="off">
+                </div>
+                
+                <div class="code-editor-wrapper">
+                    <div class="editor-header">
+                        <div class="window-dots"><span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span></div>
+                        <span class="filename" id="filename-display">main.py</span>
+                    </div>
+                    <textarea id="scriptInput" spellcheck="false" placeholder="from telethon import TelegramClient, events&#10;&#10;# Your custom Telethon handler logic goes here..."></textarea>
+                </div>
+
+                <div class="btn-group">
+                    <input type="file" id="fileUpload" accept=".py,.txt,.js" style="display: none;" onchange="deployFlow.handleFileUpload(event)">
+                    <button class="secondary-btn btn-animate" onclick="document.getElementById('fileUpload').click()">📤 Upload Script</button>
+                    <button class="primary-btn btn-animate" id="btn-deploy" onclick="deployFlow.nextToOTP()">
+                        <span class="btn-text">Connect Cloud Node</span>
+                        <div class="spinner"></div>
+                    </button>
+                </div>
+            </div>
+
+            <div class="glass-panel hidden" id="step2-otp">
+                <div class="panel-header"><h2 class="gradient-text">Verify Node Handshake</h2></div>
+                <p class="status-text target-phone" id="otp-phone-display">A verification code has been dispatched to your active Telegram application.</p>
+                <div class="input-group text-center">
+                    <label class="field-label" style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 5px; display: block;">Telegram Login Code</label>
+                    <input type="number" id="otpInput" class="glass-input text-center letters-spaced" placeholder="• • • • •" autocomplete="off">
+                </div>
+                <button class="primary-btn btn-animate" id="btn-otp" onclick="deployFlow.nextToPassword()">
+                    <span class="btn-text">Verify Handshake Code</span>
+                    <div class="spinner"></div>
+                </button>
+                <button class="secondary-btn btn-animate mt-10" onclick="deployFlow.goBack('step2-otp', 'step1-script')">Abort & Go Back</button>
+            </div>
+
+            <div class="glass-panel hidden" id="step3-password">
+                <div class="panel-header"><h2 class="gradient-text">Two-Step Verification</h2></div>
+                <p class="status-text">Your Telegram account requires a Cloud Password (2FA) to safely sign and encrypt the session.</p>
+                <div class="input-group text-center">
+                    <label class="field-label" style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 5px; display: block;">Telegram Cloud Password</label>
+                    <input type="password" id="passwordInput" class="glass-input text-center" placeholder="••••••••••••">
+                </div>
+                <button class="primary-btn btn-animate" id="btn-pass" onclick="deployFlow.finalize()">
+                    <span class="btn-text">Unlock Session & Deploy</span>
+                    <div class="spinner"></div>
+                </button>
+                <button class="secondary-btn btn-animate mt-10" onclick="deployFlow.goBack('step3-password', 'step2-otp')">Back to OTP</button>
+            </div>
+
+            <div class="glass-panel hidden text-center" id="step4-success">
+                <div class="success-ring"><span class="success-check">✓</span></div>
+                <h2 class="gradient-text">Deployment Successful</h2>
+                <p class="status-text mt-10">Your standalone userbot script is fully securely compiled, signed, and running inside an isolated cloud container sandbox.</p>
+                <button class="primary-btn btn-animate mt-20" onclick="nav.switchTab('view-files', document.querySelectorAll('.nav-item')[1])">Open Process Dashboard</button>
+                <button class="secondary-btn btn-animate mt-10" onclick="deployFlow.reset()">Deploy Secondary Instance</button>
+            </div>
+        </div>
+
+        <div id="view-files" class="view-section hidden">
+            <div class="glass-panel">
+                <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center;">
+                    <h2>Managed Grid Matrix</h2>
+                    <span class="status-badge" id="bot-count-badge" style="font-size: 0.8rem; background: rgba(39, 201, 63, 0.2); color: #27c93f; padding: 5px 12px; border-radius: 20px; border: 1px solid rgba(39, 201, 63, 0.4); font-weight: bold;">🟢 0 / 0 Threads Online</span>
+                </div>
+                <p class="status-text">Realtime management system for your active background userbot workflows.</p>
+                <div id="bots-list-container">
+                    <p class="status-text text-center mt-20">No active userbot processes found. Deploy a script to get started.</p>
+                </div>
+            </div>
+        </div>
+
+        <div id="view-settings" class="view-section hidden">
+            <div class="glass-panel" style="margin-bottom: 20px;">
+                <div class="panel-header"><h2>Account Configuration</h2></div>
+                <div style="background: rgba(0, 0, 0, 0.4); padding: 15px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.1); margin-top: 15px;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                        <span style="color: #94a3b8;">Tier Status:</span><span style="color: #fff; font-weight: bold;">Standard (Free Tier)</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 15px;">
+                        <span style="color: #94a3b8;">Node Credits:</span><span style="color: #27c93f; font-weight: bold;">$0.00 USD</span>
+                    </div>
+                    <button class="primary-btn btn-animate" style="width: 100%; background: linear-gradient(90deg, #ffd700, #ff8c00); color: #000; font-weight: bold; border: none; box-shadow: 0 4px 15px rgba(255, 140, 0, 0.3);">💎 Purchase Enterprise Premium Node</button>
+                </div>
+            </div>
+
+            <div class="glass-panel">
+                <div class="panel-header"><h2>UI Aesthetics</h2></div>
+                <div style="margin-top: 15px;">
+                    <label class="field-label" style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 5px; display: block;">Background Video Asset URL</label>
+                    <input type="text" id="video-url-input" class="glass-input" placeholder="https://domain.com/video.mp4" value="https://cdn.pixabay.com/video/2020/05/25/40131-424785461_large.mp4">
+                    <button class="secondary-btn btn-animate" onclick="uiEngine.updateBackgroundFromSettings()">Update Fluid Stream Asset</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="view-admin" class="view-section hidden">
+            <div class="glass-panel text-center" id="admin-login-panel">
+                <div class="panel-header" style="justify-content: center;"><h2 class="gradient-text">Admin Gatekeeper</h2></div>
+                <p class="status-text">Root access validation mandatory. Session attempts are log-monitored.</p>
+                <input type="password" id="adminPassInput" class="glass-input text-center" placeholder="Enter System Token Key">
+                <button class="primary-btn btn-animate" id="btn-admin-login" onclick="adminFlow.verify()">
+                    <span class="btn-text">Authenticate Core Token</span>
+                    <div class="spinner"></div>
+                </button>
+            </div>
+
+            <div class="glass-panel hidden" id="admin-dash-panel">
+                <div class="panel-header">
+                    <h2 class="gradient-text">Master Server Matrix</h2>
+                    <span class="badge active-badge" id="global-server-badge" style="font-size: 0.7rem; background: rgba(39, 201, 63, 0.1); border: 1px solid #27c93f; padding: 4px 8px; border-radius: 12px; color: #27c93f;">● Engine Online</span>
+                </div>
+                <p class="status-text" id="server-status-text" style="color: #27c93f;"><span class="pulse status-dot green" style="display:inline-block; font-size:0.8rem; margin-right:5px;">●</span>Primary Node Cluster operational</p>
+                
+                <div style="background: rgba(0, 0, 0, 0.4); padding: 15px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.1); margin-top: 15px;">
+                    <p style="color: #fff; margin-bottom: 10px; font-weight: bold; font-size: 0.9rem;">Master Process Hypervisor Power State</p>
+                    <div style="display: flex; gap: 10px;">
+                        <button class="action-btn" style="flex: 1; color: #27c93f; border-color: rgba(39,201,63,0.4); background: rgba(39,201,63,0.1);" onclick="adminFlow.togglePower(true)">▶ Power ON</button>
+                        <button class="action-btn danger" style="flex: 1;" onclick="adminFlow.togglePower(false)">⏹ Kill Engine</button>
+                    </div>
+                </div>
+
+                <div style="background: rgba(0, 0, 0, 0.4); padding: 15px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.1); margin-top: 15px; margin-bottom: 15px;">
+                    <p style="color: #fff; margin-bottom: 10px; font-weight: bold; font-size: 0.9rem;">Override Global Live Broadcast Background</p>
+                    <input type="text" id="admin-video-url-input" class="glass-input" style="margin-bottom: 10px;" placeholder="https://cdn.example.com/asset.mp4" value="https://cdn.pixabay.com/video/2020/05/25/40131-424785461_large.mp4">
+                    <button class="secondary-btn btn-animate" style="width: 100%;" onclick="adminFlow.updateGlobalBackground()">🎬 Broadcast Global Fluid Video Asset</button>
+                </div>
+
+                <button class="secondary-btn btn-animate" style="width: 100%; margin-top: 15px; color: #ff5f56; border-color: rgba(255, 95, 86, 0.3);" onclick="adminFlow.logout()">Wipe Access Tokens & Logout</button>
+            </div>
+        </div>
+
+        <div id="terminal-modal" class="modal-overlay hidden">
+            <div class="terminal-container">
+                <div class="terminal-header">
+                    <div class="terminal-title">
+                        <span class="dot red" onclick="terminal.close()" style="cursor: pointer;"></span><span class="dot yellow"></span><span class="dot green"></span>
+                        <span id="terminal-bot-name">stdout_stream@cloud_node</span>
+                    </div>
+                    <span class="close-btn" onclick="terminal.close()" style="cursor: pointer;">✖</span>
+                </div>
+                <div class="terminal-body" id="terminal-output"></div>
+            </div>
+        </div>
+
+    </div>
+
+    <nav class="glass-nav">
+        <div class="nav-item active" onclick="nav.switchTab('view-deploy', this)"><span class="nav-icon">☁️</span><span class="nav-label">Deploy</span></div>
+        <div class="nav-item" onclick="nav.switchTab('view-files', this)"><span class="nav-icon">🤖</span><span class="nav-label">My Bots</span></div>
+        <div class="nav-item" onclick="nav.switchTab('view-settings', this)"><span class="nav-icon">⚙️</span><span class="nav-label">Settings</span></div>
+        <div class="nav-item" onclick="nav.switchTab('view-admin', this)"><span class="nav-icon">🛡️</span><span class="nav-label">Admin</span></div>
+    </nav>
+
+    <script src="js/script.js"></script>
+</body>
+</html>
