@@ -19,17 +19,29 @@ const toast = {
         container.appendChild(element);
         
         requestAnimationFrame(() => { element.style.transform = 'translateY(0)'; element.style.opacity = '1'; });
-        setTimeout(() => { element.style.opacity = '0'; element.style.transform = 'translateY(-10px)'; setTimeout(() => element.remove(), 300); }, 4000);
+        setTimeout(() => { 
+            element.style.opacity = '0'; 
+            element.style.transform = 'translateY(-10px)'; 
+            setTimeout(() => element.remove(), 300); 
+        }, 4000);
     }
 };
 
 // --- Navigation Core ---
 const nav = {
     switchTab(targetViewId, element) {
+        // Hide all views
         document.querySelectorAll('.view-section').forEach(v => v.classList.add('hidden'));
-        document.getElementById(targetViewId).classList.remove('hidden');
+        // Show target view
+        const targetView = document.getElementById(targetViewId);
+        if(targetView) targetView.classList.remove('hidden');
+        
+        // Update active class on nav buttons
         document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
         if (element) element.classList.add('active');
+        
+        // Refresh specific UI elements if needed
+        if(targetViewId === 'dashboard-view') deployFlow.syncBotListUI();
     }
 };
 
@@ -56,12 +68,9 @@ const uiEngine = {
 // --- Live Resource Hosting Engine ---
 const hostingEngine = {
     init() {
-        // Poll for real-time memory and process statuses every 3 seconds
         setInterval(this.pollStatus.bind(this), 3000);
     },
     async pollStatus() {
-        if (Object.keys(AppState.activeBots).length === 0) return;
-        
         try {
             const response = await fetch('/api/bot/status');
             const data = await response.json();
@@ -69,17 +78,16 @@ const hostingEngine = {
             let requiresUIUpdate = false;
             
             if (data.status === 'success') {
+                // Check currently known bots against server state
                 for (const [id, bot] of Object.entries(AppState.activeBots)) {
                     const liveStats = data.bots[bot.phoneKey];
                     if (liveStats) {
-                        // Update UI only if metrics have changed to prevent DOM thrashing
                         if (bot.ram !== liveStats.ram || bot.status !== liveStats.status) {
                             bot.ram = liveStats.ram;
                             bot.status = liveStats.status;
                             requiresUIUpdate = true;
                         }
                     } else if (bot.status === 'Running') {
-                        // Backend process was terminated externally or crashed
                         bot.status = 'Stopped';
                         bot.ram = '0.0MB';
                         requiresUIUpdate = true;
@@ -88,7 +96,7 @@ const hostingEngine = {
             }
             if (requiresUIUpdate) deployFlow.syncBotListUI();
         } catch (e) {
-            // Silently suppress polling errors to avoid console spam during network drops
+            // Silently suppress polling errors
         }
     }
 };
@@ -100,8 +108,10 @@ const deployFlow = {
         if (!file) return;
         const reader = new FileReader();
         reader.onload = function(e) {
-            document.getElementById('scriptInput').value = e.target.result;
-            document.getElementById('filename-display').innerText = file.name;
+            const inputElement = document.getElementById('scriptInput');
+            if(inputElement) inputElement.value = e.target.result;
+            const displayElement = document.getElementById('filename-display');
+            if(displayElement) displayElement.innerText = file.name;
             toast.show(`Imported: ${file.name}`);
         };
         reader.readAsText(file);
@@ -115,7 +125,7 @@ const deployFlow = {
         if (!phone || !script) return toast.show('Phone number and script cannot be blank.', 'error');
 
         AppState.phone = phone;
-        btn.classList.add('loading');
+        if(btn) btn.classList.add('loading');
 
         try {
             const response = await fetch('/api/deploy/initiate', {
@@ -124,7 +134,7 @@ const deployFlow = {
                 body: JSON.stringify({ phone: phone, script: script })
             });
             const data = await response.json();
-            btn.classList.remove('loading');
+            if(btn) btn.classList.remove('loading');
 
             if (data.status === 'awaiting_otp') {
                 document.getElementById('otp-phone-display').innerText = `Verification code sent to ${phone}.`;
@@ -134,7 +144,7 @@ const deployFlow = {
                 toast.show(data.message || 'Server error initiating session.', 'error');
             }
         } catch (err) {
-            btn.classList.remove('loading');
+            if(btn) btn.classList.remove('loading');
             toast.show('Network failure.', 'error');
         }
     },
@@ -144,7 +154,7 @@ const deployFlow = {
         const btn = document.getElementById('btn-otp');
         if (otpCode.length < 4) return toast.show('Invalid code length.', 'error');
 
-        btn.classList.add('loading');
+        if(btn) btn.classList.add('loading');
 
         try {
             const response = await fetch('/api/deploy/verify-otp', {
@@ -153,7 +163,7 @@ const deployFlow = {
                 body: JSON.stringify({ phone: AppState.phone, code: otpCode })
             });
             const data = await response.json();
-            btn.classList.remove('loading');
+            if(btn) btn.classList.remove('loading');
 
             if (data.status === 'awaiting_2fa') {
                 this.goBack('step2-otp', 'step3-password');
@@ -164,35 +174,8 @@ const deployFlow = {
                 toast.show(data.message || 'OTP failed.', 'error');
             }
         } catch (err) {
-            btn.classList.remove('loading');
+            if(btn) btn.classList.remove('loading');
             toast.show('Network failure.', 'error');
-        }
-    },
-
-    async finalize() {
-        const password = document.getElementById('passwordInput').value;
-        const btn = document.getElementById('btn-pass');
-        if (!password) return toast.show('Password required.', 'error');
-
-        btn.classList.add('loading');
-
-        try {
-            const response = await fetch('/api/deploy/finalize', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ phone: AppState.phone, password: password })
-            });
-            const data = await response.json();
-            btn.classList.remove('loading');
-
-            if (data.status === 'deployed') {
-                this.handleSuccessfulDeployment();
-            } else {
-                toast.show(data.message || 'Incorrect Password.', 'error');
-            }
-        } catch (err) {
-            btn.classList.remove('loading');
-            toast.show('Deployment failed.', 'error');
         }
     },
 
@@ -201,10 +184,9 @@ const deployFlow = {
         document.getElementById('step3-password').classList.add('hidden');
         document.getElementById('step4-success').classList.remove('hidden');
         
-        const fileName = document.getElementById('filename-display').innerText;
+        const fileName = document.getElementById('filename-display').innerText || 'Custom_Script.py';
         const safeId = AppState.phone.replace(/[^0-9]/g, ''); 
         
-        // Initializing with temporary string. HostingEngine poll will overwrite this rapidly.
         AppState.activeBots[safeId] = { phoneKey: AppState.phone, name: fileName, status: 'Running', uptime: '0m', ram: 'Pending...' };
         this.syncBotListUI();
         toast.show('Userbot activated successfully!', 'success');
@@ -298,7 +280,9 @@ const botControl = {
 // --- Live Terminal Logs Engine ---
 window.terminal = {
     async open(phoneKey, botName) {
-        document.getElementById('terminal-modal').classList.remove('hidden');
+        const terminalModal = document.getElementById('terminal-modal');
+        if(terminalModal) terminalModal.classList.remove('hidden');
+        
         document.getElementById('terminal-bot-name').innerText = `stdout@${botName}`;
         const output = document.getElementById('terminal-output');
         output.innerHTML = `<p style="color: #64748b;">[system] Hooking stdout stream matrix for process: ${botName}...</p>`;
@@ -324,7 +308,10 @@ window.terminal = {
         }
         output.scrollTop = output.scrollHeight;
     },
-    close() { document.getElementById('terminal-modal').classList.add('hidden'); }
+    close() { 
+        const terminalModal = document.getElementById('terminal-modal');
+        if(terminalModal) terminalModal.classList.add('hidden'); 
+    }
 };
 
 // --- Admin Flow ---
@@ -332,9 +319,10 @@ const adminFlow = {
     verify() {
         const pass = document.getElementById('adminPassInput').value;
         const btn = document.getElementById('btn-admin-login');
-        btn.classList.add('loading');
+        if(btn) btn.classList.add('loading');
+        
         setTimeout(() => {
-            btn.classList.remove('loading');
+            if(btn) btn.classList.remove('loading');
             if (pass === 'sid999') {
                 document.getElementById('admin-login-panel').classList.add('hidden');
                 document.getElementById('admin-dash-panel').classList.remove('hidden');
@@ -354,14 +342,24 @@ const adminFlow = {
         const indicator = document.getElementById('server-status-text');
         const badge = document.getElementById('global-server-badge');
         if (isPowerOn) {
-            indicator.style.color = 'var(--sys-green)';
-            indicator.innerHTML = '<span class="pulse status-dot green">●</span>Primary Node Cluster operational';
-            badge.className = "badge active-badge"; badge.innerText = "● Engine Online";
+            if(indicator) {
+                indicator.style.color = 'var(--sys-green)';
+                indicator.innerHTML = '<span class="pulse status-dot green">●</span>Primary Node Cluster operational';
+            }
+            if(badge) {
+                badge.className = "badge active-badge"; 
+                badge.innerText = "● Engine Online";
+            }
             toast.show('Hypervisor instances awakened.', 'success');
         } else {
-            indicator.style.color = 'var(--sys-red)';
-            indicator.innerHTML = '<span class="status-dot red">●</span>System Offline.';
-            badge.className = "badge premium-badge"; badge.innerText = "⏹ Engine Dead";
+            if(indicator) {
+                indicator.style.color = 'var(--sys-red)';
+                indicator.innerHTML = '<span class="status-dot red">●</span>System Offline.';
+            }
+            if(badge) {
+                badge.className = "badge premium-badge"; 
+                badge.innerText = "⏹ Engine Dead";
+            }
             toast.show('System Warning: Engines killed.', 'error');
         }
     },
@@ -374,7 +372,13 @@ const adminFlow = {
     }
 };
 
+// Expose globals for HTML onclick bindings
+window.nav = nav;
 window.uiEngine = uiEngine;
+window.deployFlow = deployFlow;
+window.botControl = botControl;
+window.adminFlow = adminFlow;
+
 document.addEventListener('DOMContentLoaded', () => {
     deployFlow.syncBotListUI();
     hostingEngine.init(); 
