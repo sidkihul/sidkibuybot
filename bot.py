@@ -1,6 +1,7 @@
 import asyncio
 import sqlite3
 import time
+import os
 from datetime import datetime
 from aiogram import Bot, Dispatcher, F
 from aiogram.types import (
@@ -14,22 +15,20 @@ from aiogram.fsm.state import State, StatesGroup
 # --- CONFIGURATION ---
 BOT_TOKEN = "8650706516:AAHw04CwFcdy5uvQjeaasHAkr1QL1yTl3ac"
 PROVIDER_TOKEN = "YOUR_RAZORPAY_TOKEN_HERE" # From BotFather
-ADMIN_ID = 2119464081 # Replace with your Telegram User ID
-WEB_APP_URL = "https://your-website.com/dashboard.html" # Replace with your hosted HTML link
+ADMIN_ID = 123456789 # Replace with your Telegram User ID
+WEB_APP_URL = "https://yourusername.github.io/dragon-dashboard/" # Update to your GitHub Pages link
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-# --- FSM STATES ---
-class AdminStates(StatesGroup):
-    waiting_for_video = State()
-    waiting_for_broadcast = State()
-    waiting_for_user_id_balance = State()
-    waiting_for_amount_balance = State()
+# --- DATABASE SETUP (BULLETPROOFED) ---
+DB_PATH = "data/hosting.db"
 
-# --- DATABASE SETUP ---
 def init_db():
-    conn = sqlite3.connect("hosting.db")
+    # Automatically creates the folder if it doesn't exist, preventing Railway crashes
+    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+    
+    conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute('''CREATE TABLE IF NOT EXISTS users (user_id INTEGER PRIMARY KEY, wallet REAL DEFAULT 0, is_premium INTEGER DEFAULT 0, referrer_id INTEGER)''')
     c.execute('''CREATE TABLE IF NOT EXISTS active_bots (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, bot_count INTEGER, expires_at REAL)''')
@@ -39,7 +38,7 @@ def init_db():
     conn.close()
 
 def get_db_value(query, params=(), fetchone=True):
-    conn = sqlite3.connect("hosting.db")
+    conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute(query, params)
     res = c.fetchone() if fetchone else c.fetchall()
@@ -47,7 +46,7 @@ def get_db_value(query, params=(), fetchone=True):
     return res
 
 def execute_db(query, params=()):
-    conn = sqlite3.connect("hosting.db")
+    conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute(query, params)
     conn.commit()
@@ -60,14 +59,17 @@ def get_setting(key):
 def set_setting(key, value):
     execute_db("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (key, value))
 
+# --- FSM STATES ---
+class AdminStates(StatesGroup):
+    waiting_for_video = State()
+    waiting_for_broadcast = State()
+    waiting_for_user_id_balance = State()
+    waiting_for_amount_balance = State()
+
 # --- REUSABLE MENUS & NAVIGATION ---
 def get_main_menu(user_id):
     builder = InlineKeyboardBuilder()
-    
-    # The Web App Button
     builder.button(text="✨ Open Glass Dashboard ✨", web_app=WebAppInfo(url=WEB_APP_URL))
-    
-    # Standard Fallback Buttons
     builder.button(text="🔥 Profile", callback_data="profile")
     builder.button(text="🐉 Dragon Wallet", callback_data="wallet")
     builder.button(text="⚡ Buy Hosted Bots", callback_data="buy_bots")
@@ -395,11 +397,8 @@ async def check_expirations():
 async def main():
     init_db()
     asyncio.create_task(check_expirations())
-    print("Bot running with Web App Support...")
+    print("Bot is alive and listening...")
     await dp.start_polling(bot)
-
-if __name__ == "__main__":
-    asyncio.run(main())
 
 if __name__ == "__main__":
     asyncio.run(main())
