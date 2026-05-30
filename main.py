@@ -6,7 +6,6 @@ import psutil
 import time
 import json
 import threading
-import shutil
 from flask import Flask, request, jsonify, send_from_directory
 
 # Setup Flask to serve the frontend from the 'webapp' folder natively
