@@ -1,153 +1,111 @@
-:root {
-    --bg-glass: rgba(15, 23, 42, 0.7);
-    --border-glass: rgba(255, 255, 255, 0.1);
-    --text-main: #f8fafc;
-    --sys-green: #10b981;
-    --sys-red: #ef4444;
-    --sys-yellow: #f59e0b;
-    --sys-blue: #3b82f6;
+/* Base & Reset */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
-
-* { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
 
 body {
-    background-color: #000;
-    color: var(--text-main);
-    overflow: hidden; /* Prevent scrolling the body, scroll the app area instead */
+    background-color: #0f172a;
+    color: #e2e8f0;
+    min-height: 100vh;
+    overflow-x: hidden;
 }
 
-/* Background Video */
-#bg-video {
+/* Video Background */
+.video-bg-container {
     position: fixed;
-    right: 0; bottom: 0;
-    min-width: 100%; min-height: 100%;
-    z-index: -1;
-    object-fit: cover;
-    opacity: 0.4;
-}
-
-/* Main Layout */
-.glass-container {
-    display: flex;
-    height: 100vh;
+    top: 0;
+    left: 0;
     width: 100vw;
-    backdrop-filter: blur(10px);
+    height: 100vh;
+    z-index: -1;
+    overflow: hidden;
 }
 
-.sidebar {
-    width: 250px;
-    background: var(--bg-glass);
-    border-right: 1px solid var(--border-glass);
-    padding: 20px;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
+#bg-video {
+    width: 100vw;
+    height: 100vh;
+    object-fit: cover;
+    filter: blur(4px);
+    transform: scale(1.05); /* Prevents blur edges */
 }
 
-.sidebar h2 { margin-bottom: 20px; font-size: 1.5rem; text-align: center; border-bottom: 1px solid var(--border-glass); padding-bottom: 10px;}
-
-.content-area {
-    flex: 1;
-    padding: 40px;
-    overflow-y: auto;
-}
-
-/* Buttons and Inputs */
-button {
-    background: var(--sys-blue);
-    color: white;
-    border: none;
-    padding: 12px 20px;
-    border-radius: 8px;
-    cursor: pointer;
-    font-weight: bold;
-    transition: 0.2s;
-}
-button:hover { filter: brightness(1.2); }
-button.secondary { background: transparent; border: 1px solid var(--border-glass); }
-button.danger { background: var(--sys-red); }
-
-.nav-item {
-    background: transparent;
-    text-align: left;
-    border-radius: 8px;
-    border: 1px solid transparent;
-}
-.nav-item:hover, .nav-item.active { background: rgba(255,255,255,0.1); border-color: var(--border-glass); }
-
-input, textarea {
+.video-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
     width: 100%;
-    padding: 12px;
-    margin: 10px 0;
-    background: rgba(0,0,0,0.5);
-    border: 1px solid var(--border-glass);
-    color: white;
-    border-radius: 8px;
+    height: 100%;
+    background: radial-gradient(circle at center, rgba(15, 23, 42, 0.6) 0%, rgba(15, 23, 42, 0.9) 100%);
 }
 
-/* Cards & UI Elements */
-.card {
-    background: var(--bg-glass);
-    border: 1px solid var(--border-glass);
-    padding: 25px;
-    border-radius: 12px;
-    margin-bottom: 20px;
+/* Layout */
+.app-container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 2rem 1rem 6rem 1rem; /* Bottom padding for nav */
 }
 
-.hidden { display: none !important; }
-
-.badge { background: var(--border-glass); padding: 2px 8px; border-radius: 12px; font-size: 0.8rem; float: right;}
-.active-badge { background: rgba(16, 185, 129, 0.2); color: var(--sys-green); border: 1px solid var(--sys-green);}
-
-.file-upload-box {
-    border: 2px dashed var(--border-glass);
-    padding: 20px;
-    text-align: center;
-    border-radius: 8px;
-    cursor: pointer;
-    margin: 10px 0;
+.view-section {
+    display: none;
+    animation: fadeIn 0.4s ease forwards;
 }
 
-/* Bot List Dashboard Items */
-.file-item {
-    background: rgba(0,0,0,0.3);
-    padding: 15px;
-    border-radius: 8px;
-    margin-bottom: 10px;
+.view-section.active {
+    display: block;
+}
+
+.hidden {
+    display: none !important;
+}
+
+/* Glass Panels */
+.glass-panel {
+    background: rgba(30, 41, 59, 0.7);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+    padding: 2rem;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    margin-bottom: 1.5rem;
+}
+
+.panel-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    border: 1px solid var(--border-glass);
+    margin-bottom: 1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    padding-bottom: 1rem;
 }
-.file-info-header { display: flex; align-items: center; gap: 15px; }
-.status-dot { font-size: 1.2rem; }
-.green { color: var(--sys-green); }
-.red { color: var(--sys-red); }
-.pulse { animation: pulse-anim 2s infinite; }
-@keyframes pulse-anim { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
 
-/* Terminal Modal */
-.modal {
-    position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-    background: rgba(0,0,0,0.8);
-    display: flex; justify-content: center; align-items: center;
-    z-index: 1000;
+/* Typography */
+.gradient-text {
+    background: linear-gradient(to right, #38bdf8, #818cf8);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    font-size: 1.5rem;
+    font-weight: 700;
 }
-.terminal-window {
-    width: 80%; height: 70%;
-    background: #0f172a;
-    border-radius: 8px;
-    border: 1px solid #334155;
-    display: flex; flex-direction: column;
+
+.status-text {
+    color: #94a3b8;
+    font-size: 0.95rem;
+    line-height: 1.5;
+    margin-bottom: 1.5rem;
 }
-.terminal-header {
-    background: #1e293b; padding: 10px 20px;
-    display: flex; justify-content: space-between;
-    border-bottom: 1px solid #334155;
-    font-family: monospace;
-}
-.close-btn { background: transparent; padding: 0; color: #94a3b8; font-size: 1.2rem; }
-.terminal-body {
-    padding: 20px; flex: 1; overflow-y: auto;
-    font-family: 'Courier New', Courier, monospace; font-size: 0.9rem;
-}
+
+.text-center { text-align: center; }
+.mt-10 { margin-top: 10px; }
+.mt-20 { margin-top: 20px; }
+
+/* Inputs */
+.input-group { margin-bottom: 1.5rem; }
+
+.glass-input {
+    width: 100%;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255
