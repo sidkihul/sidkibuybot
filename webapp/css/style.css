@@ -225,3 +225,117 @@ button.loading .spinner { display: inline-block; } button.loading .btn-text { di
     50% { background-position: 100% 50%; }
     100% { background-position: 0% 50%; }
 }
+
+/* ==========================================================================
+   --- [NEW] Admin Dashboard & Premium Management Styles --- 
+   ========================================================================== */
+
+/* Top level Stats Overview Card */
+.admin-stat-card {
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    padding: 16px;
+    margin-bottom: 24px;
+    box-shadow: inset 0 2px 10px rgba(0,0,0,0.2);
+    font-size: 0.95rem;
+    color: var(--text-muted);
+}
+.admin-stat-card strong {
+    color: var(--accent-cyber);
+    display: inline-block;
+    margin-bottom: 8px;
+    font-size: 1.1rem;
+    letter-spacing: 0.5px;
+}
+
+/* Scrollable Container for User List */
+.admin-user-list {
+    max-height: 250px;
+    overflow-y: auto;
+    padding-right: 8px;
+    margin-top: 12px;
+}
+.admin-user-list::-webkit-scrollbar {
+    width: 6px;
+}
+.admin-user-list::-webkit-scrollbar-thumb {
+    background: rgba(0, 242, 254, 0.2);
+    border-radius: 6px;
+}
+
+/* Individual User Row Item */
+.admin-user-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(10, 11, 22, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.04);
+    padding: 12px 16px;
+    border-radius: 12px;
+    margin-bottom: 10px;
+    transition: var(--transition-fast);
+}
+.admin-user-row:hover {
+    background: rgba(15, 17, 30, 0.8);
+    border-color: rgba(0, 242, 254, 0.2);
+    transform: translateX(4px);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+}
+
+/* "Make Premium" Button */
+.btn-make-premium {
+    background: rgba(39, 201, 63, 0.1);
+    color: var(--sys-green);
+    border: 1px solid rgba(39, 201, 63, 0.3);
+    padding: 6px 14px;
+    border-radius: 8px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: var(--transition-fast);
+    backdrop-filter: blur(4px);
+}
+.btn-make-premium:hover {
+    background: var(--sys-green);
+    color: #000;
+    box-shadow: 0 0 15px rgba(39, 201, 63, 0.4);
+    transform: translateY(-2px);
+}
+.btn-make-premium:active {
+    transform: translateY(1px);
+}
+
+/* Premium Active Text / Label */
+.premium-text-label {
+    color: var(--sys-green);
+    font-size: 0.8rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    text-shadow: 0 0 10px rgba(39, 201, 63, 0.3);
+    padding: 4px 8px;
+    border-radius: 6px;
+    background: rgba(39, 201, 63, 0.05);
+}
+
+/* Enhancements for Engine Power Buttons */
+.power-on {
+    background: rgba(39, 201, 63, 0.15) !important;
+    border-color: rgba(39, 201, 63, 0.4) !important;
+    color: var(--sys-green) !important;
+}
+.power-on:hover {
+    box-shadow: 0 0 20px rgba(39, 201, 63, 0.3) !important;
+    background: rgba(39, 201, 63, 0.25) !important;
+}
+.power-off {
+    background: rgba(255, 95, 86, 0.15) !important;
+    border-color: rgba(255, 95, 86, 0.4) !important;
+    color: var(--sys-red) !important;
+}
+.power-off:hover {
+    box-shadow: 0 0 20px rgba(255, 95, 86, 0.3) !important;
+    background: rgba(255, 95, 86, 0.25) !important;
+}
