@@ -23,7 +23,7 @@
             <div class="glass-panel" id="step1-script">
                 <div class="panel-header">
                     <h2 class="gradient-text">Cloud Deployment Engine</h2>
-                    <span class="badge premium-badge" style="font-size: 0.7rem; background: rgba(0, 242, 254, 0.1); border: 1px solid #00f2fe; padding: 4px 8px; border-radius: 12px; color: #00f2fe;">Node v4.1</span>
+                    <span class="badge premium-badge" style="font-size: 0.7rem; background: rgba(0, 242, 254, 0.1); border: 1px solid #00f2fe; padding: 4px 8px; border-radius: 12px; color: #00f2fe;">Node v4.2</span>
                 </div>
                 <p class="status-text">Enter your phone number connected to Telegram and write or upload your specialized userbot script.</p>
                 
@@ -57,7 +57,7 @@
                     <label class="field-label" style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 5px; display: block;">Telegram Login Code</label>
                     <input type="number" id="otpInput" class="glass-input text-center letters-spaced" placeholder="• • • • •" autocomplete="off">
                 </div>
-                <button class="primary-btn btn-animate" id="btn-otp" onclick="deployFlow.nextToPassword()">
+                <button class="primary-btn btn-animate mt-20" id="btn-otp" onclick="deployFlow.nextToPassword()">
                     <span class="btn-text">Verify Handshake Code</span>
                     <div class="spinner"></div>
                 </button>
@@ -71,7 +71,7 @@
                     <label class="field-label" style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 5px; display: block;">Telegram Cloud Password</label>
                     <input type="password" id="passwordInput" class="glass-input text-center" placeholder="••••••••••••">
                 </div>
-                <button class="primary-btn btn-animate" id="btn-pass" onclick="deployFlow.finalize()">
+                <button class="primary-btn btn-animate mt-20" id="btn-pass" onclick="deployFlow.finalize()">
                     <span class="btn-text">Unlock Session & Deploy</span>
                     <div class="spinner"></div>
                 </button>
@@ -79,8 +79,8 @@
             </div>
 
             <div class="glass-panel hidden text-center" id="step4-success">
-                <div class="success-ring"><span class="success-check">✓</span></div>
-                <h2 class="gradient-text">Deployment Successful</h2>
+                <div class="success-ring" style="font-size: 3rem; color: var(--success); text-shadow: 0 0 20px var(--success);">✓</div>
+                <h2 class="gradient-text mt-10">Deployment Successful</h2>
                 <p class="status-text mt-10">Your standalone userbot script is fully securely compiled, signed, and running inside an isolated cloud container sandbox.</p>
                 <button class="primary-btn btn-animate mt-20" onclick="nav.switchTab('view-files', document.querySelectorAll('.nav-item')[1])">Open Process Dashboard</button>
                 <button class="secondary-btn btn-animate mt-10" onclick="deployFlow.reset()">Deploy Secondary Instance</button>
@@ -90,7 +90,7 @@
         <div id="view-files" class="view-section hidden">
             <div class="glass-panel">
                 <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center;">
-                    <h2>Managed Grid Matrix</h2>
+                    <h2 class="gradient-text">Managed Grid Matrix</h2>
                     <span class="status-badge" id="bot-count-badge" style="font-size: 0.8rem; background: rgba(39, 201, 63, 0.2); color: #27c93f; padding: 5px 12px; border-radius: 20px; border: 1px solid rgba(39, 201, 63, 0.4); font-weight: bold;">🟢 0 / 0 Threads Online</span>
                 </div>
                 <p class="status-text">Realtime management system for your active background userbot workflows.</p>
@@ -102,7 +102,7 @@
 
         <div id="view-settings" class="view-section hidden">
             <div class="glass-panel" style="margin-bottom: 20px;">
-                <div class="panel-header"><h2>Account Configuration</h2></div>
+                <div class="panel-header"><h2 class="gradient-text">Account Configuration</h2></div>
                 <div style="background: rgba(0, 0, 0, 0.4); padding: 15px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.1); margin-top: 15px;">
                     <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
                         <span style="color: #94a3b8;">Tier Status:</span><span style="color: #fff; font-weight: bold;">Standard (Free Tier)</span>
@@ -115,11 +115,18 @@
             </div>
 
             <div class="glass-panel">
-                <div class="panel-header"><h2>UI Aesthetics</h2></div>
+                <div class="panel-header"><h2 class="gradient-text">UI Aesthetics</h2></div>
                 <div style="margin-top: 15px;">
-                    <label class="field-label" style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 5px; display: block;">Background Video Asset URL</label>
+                    <label class="field-label" style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 5px; display: block;">Upload Custom Background Video</label>
+                    <div class="btn-group" style="margin-bottom: 15px;">
+                        <input type="file" id="local-video-upload" accept="video/mp4,video/webm" style="display: none;" onchange="uiEngine.uploadLocalBackground(event)">
+                        <button class="primary-btn btn-animate" onclick="document.getElementById('local-video-upload').click()">📁 Choose Video File</button>
+                    </div>
+
+                    <div style="text-align: center; color: var(--text-muted); margin-bottom: 15px; font-size: 0.8rem;">— OR USE URL —</div>
+                    
                     <input type="text" id="video-url-input" class="glass-input" placeholder="https://domain.com/video.mp4" value="https://cdn.pixabay.com/video/2020/05/25/40131-424785461_large.mp4">
-                    <button class="secondary-btn btn-animate" onclick="uiEngine.updateBackgroundFromSettings()">Update Fluid Stream Asset</button>
+                    <button class="secondary-btn btn-animate mt-10" onclick="uiEngine.updateBackgroundFromSettings()">Update Asset URL</button>
                 </div>
             </div>
         </div>
@@ -129,7 +136,7 @@
                 <div class="panel-header" style="justify-content: center;"><h2 class="gradient-text">Admin Gatekeeper</h2></div>
                 <p class="status-text">Root access validation mandatory. Session attempts are log-monitored.</p>
                 <input type="password" id="adminPassInput" class="glass-input text-center" placeholder="Enter System Token Key">
-                <button class="primary-btn btn-animate" id="btn-admin-login" onclick="adminFlow.verify()">
+                <button class="primary-btn btn-animate mt-20" id="btn-admin-login" onclick="adminFlow.verify()">
                     <span class="btn-text">Authenticate Core Token</span>
                     <div class="spinner"></div>
                 </button>
@@ -143,17 +150,11 @@
                 <p class="status-text" id="server-status-text" style="color: #27c93f;"><span class="pulse status-dot green" style="display:inline-block; font-size:0.8rem; margin-right:5px;">●</span>Primary Node Cluster operational</p>
                 
                 <div style="background: rgba(0, 0, 0, 0.4); padding: 15px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.1); margin-top: 15px;">
-                    <p style="color: #fff; margin-bottom: 10px; font-weight: bold; font-size: 0.9rem;">Master Process Hypervisor Power State</p>
+                    <p style="color: #fff; margin-bottom: 10px; font-weight: bold; font-size: 0.9rem;">Master Process Hypervisor State</p>
                     <div style="display: flex; gap: 10px;">
                         <button class="action-btn" style="flex: 1; color: #27c93f; border-color: rgba(39,201,63,0.4); background: rgba(39,201,63,0.1);" onclick="adminFlow.togglePower(true)">▶ Power ON</button>
-                        <button class="action-btn danger" style="flex: 1;" onclick="adminFlow.togglePower(false)">⏹ Kill Engine</button>
+                        <button class="action-btn danger" style="flex: 1; color: #ff5f56; border-color: rgba(255,95,86,0.4); background: rgba(255,95,86,0.1);" onclick="adminFlow.togglePower(false)">⏹ Kill Engine</button>
                     </div>
-                </div>
-
-                <div style="background: rgba(0, 0, 0, 0.4); padding: 15px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.1); margin-top: 15px; margin-bottom: 15px;">
-                    <p style="color: #fff; margin-bottom: 10px; font-weight: bold; font-size: 0.9rem;">Override Global Live Broadcast Background</p>
-                    <input type="text" id="admin-video-url-input" class="glass-input" style="margin-bottom: 10px;" placeholder="https://cdn.example.com/asset.mp4" value="https://cdn.pixabay.com/video/2020/05/25/40131-424785461_large.mp4">
-                    <button class="secondary-btn btn-animate" style="width: 100%;" onclick="adminFlow.updateGlobalBackground()">🎬 Broadcast Global Fluid Video Asset</button>
                 </div>
 
                 <button class="secondary-btn btn-animate" style="width: 100%; margin-top: 15px; color: #ff5f56; border-color: rgba(255, 95, 86, 0.3);" onclick="adminFlow.logout()">Wipe Access Tokens & Logout</button>
@@ -164,10 +165,12 @@
             <div class="terminal-container">
                 <div class="terminal-header">
                     <div class="terminal-title">
-                        <span class="dot red" onclick="terminal.close()" style="cursor: pointer;"></span><span class="dot yellow"></span><span class="dot green"></span>
+                        <span class="dot red" onclick="terminal.close()" style="cursor: pointer; display: inline-block; width: 12px; height: 12px; background: #ff5f56; border-radius: 50%; margin-right: 5px;"></span>
+                        <span class="dot yellow" style="display: inline-block; width: 12px; height: 12px; background: #ffbd2e; border-radius: 50%; margin-right: 5px;"></span>
+                        <span class="dot green" style="display: inline-block; width: 12px; height: 12px; background: #27c93f; border-radius: 50%; margin-right: 15px;"></span>
                         <span id="terminal-bot-name">stdout_stream@cloud_node</span>
                     </div>
-                    <span class="close-btn" onclick="terminal.close()" style="cursor: pointer;">✖</span>
+                    <span class="close-btn" onclick="terminal.close()" style="cursor: pointer; color: #ff5f56; font-weight: bold;">✖</span>
                 </div>
                 <div class="terminal-body" id="terminal-output"></div>
             </div>
