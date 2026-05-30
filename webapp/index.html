@@ -20,15 +20,15 @@
     <div class="app-container" id="main-app">
 
         <div id="view-deploy" class="view-section active">
-            <div class="glass-panel slide-up" id="step1-script">
+            <div class="glass-panel" id="step1-script">
                 <div class="panel-header">
                     <h2 class="gradient-text">Cloud Deployment Engine</h2>
-                    <span class="badge premium-badge glow-effect">Node v4.1 PRO</span>
+                    <span class="badge premium-badge" style="font-size: 0.7rem; background: rgba(0, 242, 254, 0.1); border: 1px solid #00f2fe; padding: 4px 8px; border-radius: 12px; color: #00f2fe;">Node v4.1</span>
                 </div>
-                <p class="status-text">Enter your Telegram phone number and write/upload your Python (Telethon) or JS userbot script.</p>
+                <p class="status-text">Enter your phone number connected to Telegram and write or upload your specialized userbot script.</p>
                 
-                <div class="input-group">
-                    <label class="field-label">Telegram Phone Number</label>
+                <div class="input-group" style="margin-bottom: 15px;">
+                    <label class="field-label" style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 5px; display: block;">Telegram Phone Number</label>
                     <input type="tel" id="phoneInput" class="glass-input" placeholder="e.g., +1234567890" autocomplete="off">
                 </div>
                 
@@ -37,7 +37,7 @@
                         <div class="window-dots"><span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span></div>
                         <span class="filename" id="filename-display">main.py</span>
                     </div>
-                    <textarea id="scriptInput" spellcheck="false" placeholder="import os&#10;from telethon import TelegramClient, events&#10;&#10;session = os.environ.get('TELEGRAM_SESSION_PATH')&#10;api_id = int(os.environ.get('API_ID'))&#10;api_hash = os.environ.get('API_HASH')&#10;&#10;client = TelegramClient(session, api_id, api_hash)&#10;&#10;@client.on(events.NewMessage(pattern=r'\.ping'))&#10;async def ping(e):&#10;    await e.reply('Pong from SID Hosting! 🚀')&#10;&#10;client.start()&#10;client.run_until_disconnected()"></textarea>
+                    <textarea id="scriptInput" spellcheck="false" placeholder="from telethon import TelegramClient, events&#10;&#10;# Your custom Telethon handler logic goes here..."></textarea>
                 </div>
 
                 <div class="btn-group">
@@ -50,11 +50,11 @@
                 </div>
             </div>
 
-            <div class="glass-panel hidden slide-up" id="step2-otp">
+            <div class="glass-panel hidden" id="step2-otp">
                 <div class="panel-header"><h2 class="gradient-text">Verify Node Handshake</h2></div>
-                <p class="status-text target-phone" id="otp-phone-display">A verification code has been dispatched to your Telegram app.</p>
+                <p class="status-text target-phone" id="otp-phone-display">A verification code has been dispatched to your active Telegram application.</p>
                 <div class="input-group text-center">
-                    <label class="field-label text-center">Telegram Login Code</label>
+                    <label class="field-label" style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 5px; display: block;">Telegram Login Code</label>
                     <input type="number" id="otpInput" class="glass-input text-center letters-spaced" placeholder="• • • • •" autocomplete="off">
                 </div>
                 <button class="primary-btn btn-animate" id="btn-otp" onclick="deployFlow.nextToPassword()">
@@ -64,11 +64,11 @@
                 <button class="secondary-btn btn-animate mt-10" onclick="deployFlow.goBack('step2-otp', 'step1-script')">Abort & Go Back</button>
             </div>
 
-            <div class="glass-panel hidden slide-up" id="step3-password">
+            <div class="glass-panel hidden" id="step3-password">
                 <div class="panel-header"><h2 class="gradient-text">Two-Step Verification</h2></div>
-                <p class="status-text">Your Telegram account requires a Cloud Password (2FA) to decrypt the session.</p>
+                <p class="status-text">Your Telegram account requires a Cloud Password (2FA) to safely sign and encrypt the session.</p>
                 <div class="input-group text-center">
-                    <label class="field-label text-center">Telegram Cloud Password</label>
+                    <label class="field-label" style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 5px; display: block;">Telegram Cloud Password</label>
                     <input type="password" id="passwordInput" class="glass-input text-center" placeholder="••••••••••••">
                 </div>
                 <button class="primary-btn btn-animate" id="btn-pass" onclick="deployFlow.finalize()">
@@ -78,105 +78,85 @@
                 <button class="secondary-btn btn-animate mt-10" onclick="deployFlow.goBack('step3-password', 'step2-otp')">Back to OTP</button>
             </div>
 
-            <div class="glass-panel hidden text-center slide-up" id="step4-success">
-                <div class="success-ring glow-effect-green"><span class="success-check">✓</span></div>
+            <div class="glass-panel hidden text-center" id="step4-success">
+                <div class="success-ring"><span class="success-check">✓</span></div>
                 <h2 class="gradient-text">Deployment Successful</h2>
-                <p class="status-text mt-10">Your userbot script is securely compiled and running inside an isolated cloud container.</p>
+                <p class="status-text mt-10">Your standalone userbot script is fully securely compiled, signed, and running inside an isolated cloud container sandbox.</p>
                 <button class="primary-btn btn-animate mt-20" onclick="nav.switchTab('view-files', document.querySelectorAll('.nav-item')[1])">Open Process Dashboard</button>
-                <button class="secondary-btn btn-animate mt-10" onclick="deployFlow.reset()">Deploy Another Instance</button>
+                <button class="secondary-btn btn-animate mt-10" onclick="deployFlow.reset()">Deploy Secondary Instance</button>
             </div>
         </div>
 
         <div id="view-files" class="view-section hidden">
-            <div class="glass-panel slide-up">
+            <div class="glass-panel">
                 <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center;">
-                    <h2 class="gradient-text">Managed Grid Matrix</h2>
-                    <span class="status-badge pulse" id="bot-count-badge">🟢 Syncing...</span>
+                    <h2>Managed Grid Matrix</h2>
+                    <span class="status-badge" id="bot-count-badge" style="font-size: 0.8rem; background: rgba(39, 201, 63, 0.2); color: #27c93f; padding: 5px 12px; border-radius: 20px; border: 1px solid rgba(39, 201, 63, 0.4); font-weight: bold;">🟢 0 / 0 Threads Online</span>
                 </div>
-                <p class="status-text">Real-time management system for your active background userbots.</p>
-                <div id="bots-list-container" class="bots-grid">
-                    <p class="status-text text-center mt-20">Fetching active nodes...</p>
+                <p class="status-text">Realtime management system for your active background userbot workflows.</p>
+                <div id="bots-list-container">
+                    <p class="status-text text-center mt-20">No active userbot processes found. Deploy a script to get started.</p>
                 </div>
             </div>
         </div>
 
         <div id="view-settings" class="view-section hidden">
-            <div class="glass-panel slide-up" style="margin-bottom: 20px;">
-                <div class="panel-header"><h2 class="gradient-text">Account & Wallet</h2></div>
-                <div class="wallet-card mt-10">
-                    <div class="wallet-info">
-                        <span style="color: #94a3b8; font-size: 0.9rem;">Available Node Balance</span>
-                        <h2 id="wallet-balance" style="color: #38bdf8; font-size: 2.2rem; margin-top: 5px; text-shadow: 0 0 10px rgba(56,189,248,0.5);">₹0.00</h2>
-                        <span class="badge" style="background: rgba(255,255,255,0.1); margin-top: 5px; display: inline-block;">ID: SID-CLOUD-X</span>
-                    </div>
-                    <div class="wallet-action">
-                        <input type="number" id="upi-amount" class="glass-input" placeholder="Amount (₹)" style="width: 130px; margin-bottom: 10px; text-align: center;">
-                        <button class="primary-btn btn-animate" style="background: linear-gradient(90deg, #00c6ff, #0072ff);" onclick="settingsFlow.addMoney()">
-                            <span class="btn-text">Add via UPI</span>
-                            <div class="spinner"></div>
-                        </button>
-                    </div>
-                </div>
-
-                <div class="premium-banner mt-20">
+            <div class="glass-panel" style="margin-bottom: 20px;">
+                <div class="panel-header"><h2>Account Configuration</h2></div>
+                <div style="background: rgba(0, 0, 0, 0.4); padding: 15px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.1); margin-top: 15px;">
                     <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
                         <span style="color: #94a3b8;">Tier Status:</span><span style="color: #fff; font-weight: bold;">Standard (Free Tier)</span>
                     </div>
-                    <button class="primary-btn btn-animate glow-effect-gold" style="width: 100%; background: linear-gradient(90deg, #ffd700, #ff8c00); color: #000;">💎 Upgrade to Enterprise Node</button>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 15px;">
+                        <span style="color: #94a3b8;">Node Credits:</span><span style="color: #27c93f; font-weight: bold;">$0.00 USD</span>
+                    </div>
+                    <button class="primary-btn btn-animate" style="width: 100%; background: linear-gradient(90deg, #ffd700, #ff8c00); color: #000; font-weight: bold; border: none; box-shadow: 0 4px 15px rgba(255, 140, 0, 0.3);">💎 Purchase Enterprise Premium Node</button>
                 </div>
             </div>
 
-            <div class="glass-panel slide-up">
-                <div class="panel-header"><h2 class="gradient-text">UI Aesthetics</h2></div>
+            <div class="glass-panel">
+                <div class="panel-header"><h2>UI Aesthetics</h2></div>
                 <div style="margin-top: 15px;">
-                    <label class="field-label">Background Video Asset URL</label>
+                    <label class="field-label" style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 5px; display: block;">Background Video Asset URL</label>
                     <input type="text" id="video-url-input" class="glass-input" placeholder="https://domain.com/video.mp4" value="https://cdn.pixabay.com/video/2020/05/25/40131-424785461_large.mp4">
-                    <button class="secondary-btn btn-animate mt-10" style="width: 100%;" onclick="uiEngine.updateBackgroundFromSettings()">Update Fluid Stream Asset</button>
+                    <button class="secondary-btn btn-animate" onclick="uiEngine.updateBackgroundFromSettings()">Update Fluid Stream Asset</button>
                 </div>
             </div>
         </div>
 
         <div id="view-admin" class="view-section hidden">
-            <div class="glass-panel text-center slide-up" id="admin-login-panel">
+            <div class="glass-panel text-center" id="admin-login-panel">
                 <div class="panel-header" style="justify-content: center;"><h2 class="gradient-text">Admin Gatekeeper</h2></div>
-                <p class="status-text">Root access validation mandatory. Subsystem monitored.</p>
-                <input type="password" id="adminPassInput" class="glass-input text-center" placeholder="Enter Core Token Key">
-                <button class="primary-btn btn-animate mt-10" id="btn-admin-login" style="width: 100%;" onclick="adminFlow.verify()">
-                    <span class="btn-text">Authenticate Core</span>
+                <p class="status-text">Root access validation mandatory. Session attempts are log-monitored.</p>
+                <input type="password" id="adminPassInput" class="glass-input text-center" placeholder="Enter System Token Key">
+                <button class="primary-btn btn-animate" id="btn-admin-login" onclick="adminFlow.verify()">
+                    <span class="btn-text">Authenticate Core Token</span>
                     <div class="spinner"></div>
                 </button>
             </div>
 
-            <div class="glass-panel hidden slide-up" id="admin-dash-panel">
+            <div class="glass-panel hidden" id="admin-dash-panel">
                 <div class="panel-header">
                     <h2 class="gradient-text">Master Server Matrix</h2>
-                    <span class="badge" id="global-server-badge" style="background: rgba(39, 201, 63, 0.2); color: #27c93f; border: 1px solid #27c93f;">● Online</span>
+                    <span class="badge active-badge" id="global-server-badge" style="font-size: 0.7rem; background: rgba(39, 201, 63, 0.1); border: 1px solid #27c93f; padding: 4px 8px; border-radius: 12px; color: #27c93f;">● Engine Online</span>
                 </div>
+                <p class="status-text" id="server-status-text" style="color: #27c93f;"><span class="pulse status-dot green" style="display:inline-block; font-size:0.8rem; margin-right:5px;">●</span>Primary Node Cluster operational</p>
                 
-                <div class="admin-stats-grid mt-10">
-                    <div class="stat-card glow-hover">
-                        <span class="stat-label">System CPU</span>
-                        <h3 class="stat-value" id="stat-cpu" style="color: #38bdf8;">--%</h3>
-                    </div>
-                    <div class="stat-card glow-hover">
-                        <span class="stat-label">System RAM</span>
-                        <h3 class="stat-value" id="stat-ram" style="color: #ffbd2e;">--%</h3>
-                    </div>
-                    <div class="stat-card glow-hover">
-                        <span class="stat-label">Active Bots</span>
-                        <h3 class="stat-value" id="stat-bots" style="color: #27c93f;">0</h3>
-                    </div>
-                </div>
-
-                <div class="premium-banner mt-20">
-                    <p style="color: #fff; margin-bottom: 10px; font-weight: bold;">Master Process Hypervisor Power State</p>
+                <div style="background: rgba(0, 0, 0, 0.4); padding: 15px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.1); margin-top: 15px;">
+                    <p style="color: #fff; margin-bottom: 10px; font-weight: bold; font-size: 0.9rem;">Master Process Hypervisor Power State</p>
                     <div style="display: flex; gap: 10px;">
-                        <button class="action-btn" style="flex: 1; color: #27c93f; background: rgba(39,201,63,0.1); border-color: #27c93f;" onclick="adminFlow.togglePower(true)">▶ Boot Core</button>
-                        <button class="action-btn danger" style="flex: 1;" onclick="adminFlow.togglePower(false)">⏹ Kill Everything</button>
+                        <button class="action-btn" style="flex: 1; color: #27c93f; border-color: rgba(39,201,63,0.4); background: rgba(39,201,63,0.1);" onclick="adminFlow.togglePower(true)">▶ Power ON</button>
+                        <button class="action-btn danger" style="flex: 1;" onclick="adminFlow.togglePower(false)">⏹ Kill Engine</button>
                     </div>
                 </div>
 
-                <button class="secondary-btn btn-animate" style="width: 100%; margin-top: 15px; color: #ff5f56; border-color: rgba(255, 95, 86, 0.4);" onclick="adminFlow.logout()">Wipe Auth Tokens & Logout</button>
+                <div style="background: rgba(0, 0, 0, 0.4); padding: 15px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.1); margin-top: 15px; margin-bottom: 15px;">
+                    <p style="color: #fff; margin-bottom: 10px; font-weight: bold; font-size: 0.9rem;">Override Global Live Broadcast Background</p>
+                    <input type="text" id="admin-video-url-input" class="glass-input" style="margin-bottom: 10px;" placeholder="https://cdn.example.com/asset.mp4" value="https://cdn.pixabay.com/video/2020/05/25/40131-424785461_large.mp4">
+                    <button class="secondary-btn btn-animate" style="width: 100%;" onclick="adminFlow.updateGlobalBackground()">🎬 Broadcast Global Fluid Video Asset</button>
+                </div>
+
+                <button class="secondary-btn btn-animate" style="width: 100%; margin-top: 15px; color: #ff5f56; border-color: rgba(255, 95, 86, 0.3);" onclick="adminFlow.logout()">Wipe Access Tokens & Logout</button>
             </div>
         </div>
 
@@ -185,28 +165,21 @@
                 <div class="terminal-header">
                     <div class="terminal-title">
                         <span class="dot red" onclick="terminal.close()" style="cursor: pointer;"></span><span class="dot yellow"></span><span class="dot green"></span>
-                        <span id="terminal-bot-name">syslog@cloud_node</span>
+                        <span id="terminal-bot-name">stdout_stream@cloud_node</span>
                     </div>
                     <span class="close-btn" onclick="terminal.close()" style="cursor: pointer;">✖</span>
                 </div>
                 <div class="terminal-body" id="terminal-output"></div>
             </div>
         </div>
+
     </div>
 
     <nav class="glass-nav">
-        <div class="nav-item active" onclick="nav.switchTab('view-deploy', this)">
-            <span class="nav-icon">☁️</span><span class="nav-label">Deploy</span>
-        </div>
-        <div class="nav-item" onclick="nav.switchTab('view-files', this)">
-            <span class="nav-icon">🤖</span><span class="nav-label">My Bots</span>
-        </div>
-        <div class="nav-item" onclick="nav.switchTab('view-settings', this)">
-            <span class="nav-icon">💳</span><span class="nav-label">Wallet</span>
-        </div>
-        <div class="nav-item" onclick="nav.switchTab('view-admin', this)">
-            <span class="nav-icon">🛡️</span><span class="nav-label">Admin</span>
-        </div>
+        <div class="nav-item active" onclick="nav.switchTab('view-deploy', this)"><span class="nav-icon">☁️</span><span class="nav-label">Deploy</span></div>
+        <div class="nav-item" onclick="nav.switchTab('view-files', this)"><span class="nav-icon">🤖</span><span class="nav-label">My Bots</span></div>
+        <div class="nav-item" onclick="nav.switchTab('view-settings', this)"><span class="nav-icon">⚙️</span><span class="nav-label">Settings</span></div>
+        <div class="nav-item" onclick="nav.switchTab('view-admin', this)"><span class="nav-icon">🛡️</span><span class="nav-label">Admin</span></div>
     </nav>
 
     <script src="js/script.js"></script>
