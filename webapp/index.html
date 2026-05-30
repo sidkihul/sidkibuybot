@@ -152,8 +152,16 @@
 
                 <div style="background: rgba(0, 0, 0, 0.4); padding: 15px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.1); margin-top: 15px; margin-bottom: 15px;">
                     <p style="color: #fff; margin-bottom: 10px; font-weight: bold; font-size: 0.9rem;">Override Global Live Broadcast Background</p>
-                    <input type="text" id="admin-video-url-input" class="glass-input" style="margin-bottom: 10px;" placeholder="https://cdn.example.com/asset.mp4" value="https://cdn.pixabay.com/video/2020/05/25/40131-424785461_large.mp4">
-                    <button class="secondary-btn btn-animate" style="width: 100%;" onclick="adminFlow.updateGlobalBackground()">🎬 Broadcast Global Fluid Video Asset</button>
+                    
+                    <div class="btn-group" style="margin-bottom: 10px;">
+                        <input type="file" id="admin-video-upload" accept="video/mp4,video/webm" style="display: none;" onchange="adminFlow.uploadGlobalBackground(event)">
+                        <button class="primary-btn btn-animate" onclick="document.getElementById('admin-video-upload').click()">📁 Upload Server Video File</button>
+                    </div>
+                    
+                    <div style="text-align: center; color: var(--text-muted); margin-bottom: 10px; font-size: 0.8rem;">— OR USE URL —</div>
+                    
+                    <input type="text" id="admin-video-url-input" class="glass-input" style="margin-bottom: 10px;" placeholder="https://cdn.example.com/asset.mp4">
+                    <button class="secondary-btn btn-animate" style="width: 100%;" onclick="adminFlow.updateGlobalBackgroundURL()">🎬 Broadcast Global URL Asset</button>
                 </div>
 
                 <button class="secondary-btn btn-animate" style="width: 100%; margin-top: 15px; color: #ff5f56; border-color: rgba(255, 95, 86, 0.3);" onclick="adminFlow.logout()">Wipe Access Tokens & Logout</button>
