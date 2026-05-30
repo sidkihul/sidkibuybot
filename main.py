@@ -6,6 +6,7 @@ import psutil
 import time
 import json
 import threading
+import re
 from flask import Flask, request, jsonify, send_from_directory
 
 # Setup Flask to serve the frontend from the 'webapp' folder natively
@@ -90,7 +91,7 @@ def kill_process_tree(process_info):
         print(f"Error killing process {pid}: {e}")
 
 def trigger_deployment(phone_key, script_file_path, session_path, ext, custom_env_vars=None):
-    """Deploys a script as a subprocess and registers it in the DB."""
+    """Deploys a script as a subprocess and registers it in the DB for 24/7 execution."""
     log_path = f"{script_file_path}.log"
     log_file_handle = open(log_path, "w", encoding="utf-8")
     executable = "node" if ext == ".js" else sys.executable
@@ -127,7 +128,7 @@ def trigger_deployment(phone_key, script_file_path, session_path, ext, custom_en
         'target_state': 'running'
     }
 
-    # Save to persistent database
+    # Save to persistent database so it survives server reboots
     db = load_db()
     db[phone_key] = {
         "script_path": script_file_path,
@@ -137,7 +138,7 @@ def trigger_deployment(phone_key, script_file_path, session_path, ext, custom_en
     }
     save_db(db)
 
-# --- Background Auto-Recovery Engine ---
+# --- Background Auto-Recovery Engine (24/7 Support) ---
 def auto_recovery_worker():
     """Background thread to monitor and restart unexpectedly crashed bots."""
     while True:
@@ -148,7 +149,6 @@ def auto_recovery_worker():
             if active_info and active_info.get('target_state') == 'running':
                 proc = active_info.get('process')
                 if not proc or proc.poll() is not None:
-                    # Process died unexpectedly. Restart it.
                     print(f"[Auto-Recovery] Restarting crashed bot for {phone_key}")
                     kill_process_tree(active_info)
                     trigger_deployment(
@@ -161,7 +161,7 @@ def auto_recovery_worker():
 
 threading.Thread(target=auto_recovery_worker, daemon=True).start()
 
-# --- Web Server Routes (Serving HTML/CSS/JS) ---
+# --- Web Server Routes ---
 @app.route('/')
 def serve_homepage():
     return send_from_directory(WEBAPP_DIR, 'index.html')
@@ -191,16 +191,34 @@ def initiate_handshake():
     script_path = os.path.join(SCRIPTS_DIR, f"{safe_phone}_main{ext}")
     session_path = os.path.join(SESSION_DIR, f"sess_{safe_phone}")
     
+    # --- AUTO-PATCHER: Force the user's script to use the verified session file ---
+    if ext == ".py":
+        # Finds TelegramClient('any_name'...) and replaces the session name with our absolute path
+        script_code = re.sub(
+            r"TelegramClient\s*\(\s*['\"][^'\"]+['\"]",
+            f"TelegramClient(r'{session_path}'",
+            script_code
+        )
+    
     with open(script_path, "w", encoding="utf-8") as f:
         f.write(script_code)
 
     async def request_code():
         from telethon import TelegramClient
-        client = TelegramClient(session_path, API_ID, API_HASH)
+        from telethon.errors import FloodWaitError
+        # Device details help prevent Telegram from flagging the login as suspicious
+        client = TelegramClient(session_path, API_ID, API_HASH, device_model="Cloud Node", system_version="Ubuntu 22.04", app_version="1.0")
         await client.connect()
-        code_hash_ref = await client.send_code_request(phone)
-        await client.disconnect()
-        return code_hash_ref.phone_code_hash
+        try:
+            code_hash_ref = await client.send_code_request(phone)
+            await client.disconnect()
+            return code_hash_ref.phone_code_hash
+        except FloodWaitError as e:
+            await client.disconnect()
+            raise Exception(f"Telegram rate limited this number. Wait {e.seconds} seconds.")
+        except Exception as e:
+            await client.disconnect()
+            raise e
 
     try:
         phone_code_hash = run_async(request_code())
@@ -211,14 +229,13 @@ def initiate_handshake():
             "ext": ext,
             "env_vars": env_vars
         }
-        return jsonify({"status": "awaiting_otp", "message": "OTP requested."})
+        return jsonify({"status": "awaiting_otp", "message": "OTP requested. Please check the official Telegram app (not SMS)."})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
 @app.route('/api/deploy/upload', methods=['POST'])
 def handle_file_upload():
-    """Alternative endpoint to allow users to upload actual script files."""
     if 'file' not in request.files or 'phone' not in request.form:
         return jsonify({"status": "error", "message": "Missing file or phone number"}), 400
         
@@ -234,11 +251,21 @@ def handle_file_upload():
     script_path = os.path.join(SCRIPTS_DIR, f"{safe_phone}_main{ext}")
     session_path = os.path.join(SESSION_DIR, f"sess_{safe_phone}")
     
-    file.save(script_path)
+    # Read file content to apply the auto-patcher
+    script_code = file.read().decode('utf-8')
+    if ext == ".py":
+        script_code = re.sub(
+            r"TelegramClient\s*\(\s*['\"][^'\"]+['\"]",
+            f"TelegramClient(r'{session_path}'",
+            script_code
+        )
+        
+    with open(script_path, "w", encoding="utf-8") as f:
+        f.write(script_code)
 
     async def request_code():
         from telethon import TelegramClient
-        client = TelegramClient(session_path, API_ID, API_HASH)
+        client = TelegramClient(session_path, API_ID, API_HASH, device_model="Cloud Node")
         await client.connect()
         code_hash_ref = await client.send_code_request(phone)
         await client.disconnect()
@@ -253,7 +280,7 @@ def handle_file_upload():
             "ext": ext,
             "env_vars": env_vars
         }
-        return jsonify({"status": "awaiting_otp", "message": "OTP requested."})
+        return jsonify({"status": "awaiting_otp", "message": "OTP requested. Check Telegram App."})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
@@ -271,7 +298,7 @@ def verify_otp_challenge():
 
     async def verify_code():
         from telethon import TelegramClient
-        from telethon.errors import SessionPasswordNeededError
+        from telethon.errors import SessionPasswordNeededError, PhoneCodeInvalidError, PhoneCodeExpiredError
         client = TelegramClient(handshake["session_path"], API_ID, API_HASH)
         await client.connect()
         try:
@@ -281,6 +308,12 @@ def verify_otp_challenge():
         except SessionPasswordNeededError:
             await client.disconnect()
             return "awaiting_2fa"
+        except (PhoneCodeInvalidError, PhoneCodeExpiredError) as e:
+            await client.disconnect()
+            raise Exception("Invalid or expired OTP.")
+        except Exception as e:
+            await client.disconnect()
+            raise e
 
     try:
         result = run_async(verify_code())
@@ -306,10 +339,15 @@ def finalize_cloud_password():
 
     async def verify_2fa():
         from telethon import TelegramClient
+        from telethon.errors import PasswordHashInvalidError
         client = TelegramClient(handshake["session_path"], API_ID, API_HASH)
         await client.connect()
-        await client.sign_in(password=password)
-        await client.disconnect()
+        try:
+            await client.sign_in(password=password)
+            await client.disconnect()
+        except PasswordHashInvalidError:
+            await client.disconnect()
+            raise Exception("Incorrect Cloud Password.")
 
     try:
         run_async(verify_2fa())
@@ -380,7 +418,6 @@ def control_threads():
             kill_process_tree(process_info)
             ACTIVE_PROCESSES.pop(safe_phone, None)
         
-        # Remove DB entry and files
         del db[safe_phone]
         save_db(db)
         
@@ -397,7 +434,7 @@ def control_threads():
             
         if os.path.exists(log_path):
             with open(log_path, "r", encoding="utf-8") as f:
-                lines = f.readlines()[-100:] # Increased log output
+                lines = f.readlines()[-100:] 
                 return jsonify({"status": "success", "logs": "".join(lines)})
         return jsonify({"status": "success", "logs": "[System] Awaiting script output...\n"})
 
@@ -435,7 +472,6 @@ def initialize_saved_bots():
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 8080))
-    # Boot saved bots before starting the web server
     initialize_saved_bots()
     print(f"🚀 SID Hosting Core initialized. Web interface bound to port {port}.")
     app.run(host='0.0.0.0', port=port, debug=False)
