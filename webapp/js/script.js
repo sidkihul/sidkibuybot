@@ -7,6 +7,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('bg-video').src = data.bg_video;
             }
         }).catch(console.error);
+
+    // [NEW] Fetch current user's profile to check if they are Premium
+    fetch('/api/user/profile')
+        .then(res => res.json())
+        .then(data => {
+            if(data.status === 'success') {
+                state.isPremium = data.isPremium || false;
+            }
+        }).catch(console.error);
         
     // Start polling bot statuses from the backend
     setInterval(botsManager.pollServerStatus, 5000);
@@ -20,7 +29,8 @@ const state = {
     isAdminAuth: false,
     walletBalance: 0,
     serverPower: true,
-    uploadedFile: null // Added to track actual ZIP/JS/PY files for backend
+    uploadedFile: null, // Added to track actual ZIP/JS/PY files for backend
+    isPremium: false    // [NEW] Tracks if the user has premium limits
 };
 
 const uiEngine = {
@@ -127,6 +137,11 @@ const deployFlow = {
         
         if (!phone || phone.length < 5) return uiEngine.showToast('Please enter a valid Telegram number.', 'error');
         if (!script && !state.uploadedFile) return uiEngine.showToast('Code engine requires a script to compile.', 'error');
+
+        // [NEW] Free user check limit before allowing deployment
+        if (!state.isPremium && state.bots.length >= 2) {
+            return uiEngine.showToast('Free users are limited to 2 files/bots. Contact Admin to upgrade to Premium.', 'error');
+        }
 
         state.phoneNumber = phone;
         uiEngine.setLoading('btn-deploy', true);
@@ -364,6 +379,58 @@ const adminFlow = {
 
     liveStatsInterval: null,
 
+    // [NEW] Fetch user statistics and render premium management list
+    fetchUserStats: () => {
+        if(!state.isAdminAuth) return;
+        fetch('/api/admin/user-stats')
+            .then(res => res.json())
+            .then(data => {
+                const statsContainer = document.getElementById('admin-user-stats');
+                if(statsContainer && data.status === 'success') {
+                    let html = `
+                        <div style="margin-bottom: 15px; padding: 10px; background: rgba(255,255,255,0.05); border-radius: 8px;">
+                            <strong>User Stats:</strong><br>
+                            Total Users: ${data.totalUsers} | Premium: ${data.premiumUsers} | Active Bots: ${data.totalBots}
+                        </div>
+                        <h4>Manage Users</h4>
+                        <div style="max-height: 200px; overflow-y: auto;">
+                    `;
+                    data.usersList.forEach(u => {
+                        const premiumBtn = !u.isPremium 
+                            ? `<button onclick="adminFlow.grantPremium('${u.phone}')" style="background:#27c93f; color:#fff; border:none; padding:4px 8px; border-radius:4px; cursor:pointer; font-size:12px;">Make Premium</button>` 
+                            : `<span style="color:#27c93f; font-size:12px;">✓ Premium</span>`;
+                        
+                        html += `
+                            <div style="display:flex; justify-content:space-between; margin-bottom:8px; padding:6px; background: rgba(0,0,0,0.2); border-radius:4px;">
+                                <span>${u.phone}</span>
+                                ${premiumBtn}
+                            </div>
+                        `;
+                    });
+                    html += `</div>`;
+                    statsContainer.innerHTML = html;
+                }
+            }).catch(console.error);
+    },
+
+    // [NEW] Grant premium status to a specific user
+    grantPremium: (userPhone) => {
+        fetch('/api/admin/grant-premium', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ phone: userPhone })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if(data.status === 'success') {
+                uiEngine.showToast(`Upgraded ${userPhone} to Premium!`, 'success');
+                adminFlow.fetchUserStats(); // Instant refresh of stats panel
+            } else {
+                uiEngine.showToast(data.message, 'error');
+            }
+        });
+    },
+
     simulateLiveStats: () => {
         if(!state.isAdminAuth) return;
         if(adminFlow.liveStatsInterval) clearInterval(adminFlow.liveStatsInterval);
@@ -382,6 +449,9 @@ const adminFlow = {
                         loadEl.style.color = loadNum > 75 ? '#ff5f56' : (loadNum > 50 ? '#ffbd2e' : '#27c93f');
                     }
                 }).catch(console.error);
+                
+            // [NEW] Fetch user data on the same tick
+            adminFlow.fetchUserStats();
         }, 3000);
     },
 
@@ -389,12 +459,19 @@ const adminFlow = {
         state.serverPower = isPowerOn;
         const badge = document.getElementById('global-server-badge');
         
+        // [NEW] API call to backend to forcefully start/stop all scripts
+        fetch('/api/admin/power', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ power: isPowerOn ? 'on' : 'off' })
+        }).catch(console.error);
+
         if(isPowerOn) {
             badge.textContent = '● Engine Online';
             badge.style.color = '#27c93f';
             badge.style.borderColor = '#27c93f';
             badge.style.background = 'rgba(39, 201, 63, 0.1)';
-            uiEngine.showToast('Premium Node Engine booted.', 'success');
+            uiEngine.showToast('Premium Node Engine booted. All scripts starting...', 'success'); // [UPDATED] Toast
         } else {
             badge.textContent = '● Engine Offline';
             badge.style.color = '#ff5f56';
@@ -405,7 +482,7 @@ const adminFlow = {
                 loadEl.textContent = '0%';
                 loadEl.style.color = '#94a3b8';
             }
-            uiEngine.showToast('All servers force killed.', 'error');
+            uiEngine.showToast('All servers force killed. All scripts stopped.', 'error'); // [UPDATED] Toast
         }
     },
 
