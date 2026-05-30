@@ -1,385 +1,280 @@
-// --- State Monitoring ---
-const AppState = { phone: '', scriptContent: '', activeBots: {} };
-
-// --- Toast Notifications System ---
-const toast = {
-    show(message, type = 'success') {
-        let container = document.getElementById('toast-container');
-        if (!container) {
-            container = document.createElement('div');
-            container.id = 'toast-container';
-            container.style.cssText = 'position: fixed; top: 20px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 10px;';
-            document.body.appendChild(container);
-        }
-
-        const element = document.createElement('div');
-        const bgColor = type === 'error' ? 'rgba(255, 95, 86, 0.9)' : 'rgba(39, 201, 63, 0.9)';
-        element.style.cssText = `background: ${bgColor}; color: #fff; padding: 14px 24px; border-radius: 12px; font-size: 0.95rem; box-shadow: 0 10px 30px rgba(0,0,0,0.5); backdrop-filter: blur(10px); transition: 0.3s; transform: translateY(20px); opacity: 0;`;
-        element.innerText = message;
-        container.appendChild(element);
-        
-        requestAnimationFrame(() => { element.style.transform = 'translateY(0)'; element.style.opacity = '1'; });
-        setTimeout(() => { 
-            element.style.opacity = '0'; 
-            element.style.transform = 'translateY(-10px)'; 
-            setTimeout(() => element.remove(), 300); 
-        }, 4000);
-    }
+// --- Global Utilities & State ---
+const state = {
+    bots: [],
+    phoneNumber: '',
+    isAdminAuth: false,
+    globalVideoUrl: 'https://cdn.pixabay.com/video/2020/05/25/40131-424785461_large.mp4'
 };
 
-// --- Navigation Core ---
-const nav = {
-    switchTab(targetViewId, element) {
-        // Hide all views
-        document.querySelectorAll('.view-section').forEach(v => v.classList.add('hidden'));
-        // Show target view
-        const targetView = document.getElementById(targetViewId);
-        if(targetView) targetView.classList.remove('hidden');
-        
-        // Update active class on nav buttons
-        document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
-        if (element) element.classList.add('active');
-        
-        // Refresh specific UI elements if needed
-        if(targetViewId === 'dashboard-view') deployFlow.syncBotListUI();
-    }
-};
-
-// --- UI / Aesthetics Engine ---
 const uiEngine = {
-    applyVideoSource(url) {
-        const videoElement = document.getElementById('bg-video');
-        if (videoElement && url) {
-            videoElement.src = url;
-            videoElement.load();
-            videoElement.play().catch(() => console.warn("Video autoplay blocked."));
+    showToast: (message, type = 'info') => {
+        const container = document.getElementById('toast-container');
+        const toast = document.createElement('div');
+        toast.className = 'toast';
+        toast.style.borderLeftColor = type === 'error' ? '#ff5f56' : (type === 'success' ? '#27c93f' : '#38bdf8');
+        toast.textContent = message;
+        container.appendChild(toast);
+        
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            setTimeout(() => toast.remove(), 300);
+        }, 3000);
+    },
+    
+    setLoading: (btnId, isLoading) => {
+        const btn = document.getElementById(btnId);
+        if(!btn) return;
+        const text = btn.querySelector('.btn-text');
+        const spinner = btn.querySelector('.spinner');
+        
+        if (isLoading) {
+            if(text) text.style.display = 'none';
+            if(spinner) spinner.style.display = 'block';
+            btn.disabled = true;
+        } else {
+            if(text) text.style.display = 'block';
+            if(spinner) spinner.style.display = 'none';
+            btn.disabled = false;
         }
     },
-    updateBackgroundFromSettings() {
-        const targetUrl = document.getElementById('video-url-input').value.trim();
-        if (!targetUrl) return toast.show('Please enter a valid video URL.', 'error');
-        this.applyVideoSource(targetUrl);
-        const adminInput = document.getElementById('admin-video-url-input');
-        if(adminInput) adminInput.value = targetUrl;
-        toast.show('Background updated successfully.', 'success');
-    }
-};
 
-// --- Live Resource Hosting Engine ---
-const hostingEngine = {
-    init() {
-        setInterval(this.pollStatus.bind(this), 3000);
-    },
-    async pollStatus() {
-        try {
-            const response = await fetch('/api/bot/status');
-            const data = await response.json();
-            
-            let requiresUIUpdate = false;
-            
-            if (data.status === 'success') {
-                // Check currently known bots against server state
-                for (const [id, bot] of Object.entries(AppState.activeBots)) {
-                    const liveStats = data.bots[bot.phoneKey];
-                    if (liveStats) {
-                        if (bot.ram !== liveStats.ram || bot.status !== liveStats.status) {
-                            bot.ram = liveStats.ram;
-                            bot.status = liveStats.status;
-                            requiresUIUpdate = true;
-                        }
-                    } else if (bot.status === 'Running') {
-                        bot.status = 'Stopped';
-                        bot.ram = '0.0MB';
-                        requiresUIUpdate = true;
-                    }
-                }
-            }
-            if (requiresUIUpdate) deployFlow.syncBotListUI();
-        } catch (e) {
-            // Silently suppress polling errors
+    updateBackgroundFromSettings: () => {
+        const url = document.getElementById('video-url-input').value;
+        if(url) {
+            document.getElementById('bg-video').src = url;
+            uiEngine.showToast('Background updated successfully.', 'success');
         }
     }
 };
 
-// --- User Deployment Pipeline ---
+// --- Navigation ---
+const nav = {
+    switchTab: (viewId, element) => {
+        // Handle UI Nav states
+        document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
+        document.getElementById(viewId).classList.add('active');
+        
+        document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+        if(element) element.classList.add('active');
+        else {
+            // Find specific nav item if triggered via code
+            const icons = { 'view-deploy': 0, 'view-files': 1, 'view-settings': 2, 'view-admin': 3 };
+            document.querySelectorAll('.nav-item')[icons[viewId]].classList.add('active');
+        }
+
+        if(viewId === 'view-files') botsManager.renderList();
+    }
+};
+
+// --- Deployment Flow ---
 const deployFlow = {
-    handleFileUpload(event) {
-        const file = event.target.files[0];
-        if (!file) return;
+    handleFileUpload: (e) => {
+        const file = e.target.files[0];
+        if(!file) return;
+        
         const reader = new FileReader();
-        reader.onload = function(e) {
-            const inputElement = document.getElementById('scriptInput');
-            if(inputElement) inputElement.value = e.target.result;
-            const displayElement = document.getElementById('filename-display');
-            if(displayElement) displayElement.innerText = file.name;
-            toast.show(`Imported: ${file.name}`);
+        reader.onload = function(evt) {
+            document.getElementById('scriptInput').value = evt.target.result;
+            document.getElementById('filename-display').textContent = file.name;
+            uiEngine.showToast('Script loaded securely.', 'success');
         };
         reader.readAsText(file);
     },
 
-    async nextToOTP() {
-        const phone = document.getElementById('phoneInput').value.trim();
-        const script = document.getElementById('scriptInput').value.trim();
-        const btn = document.getElementById('btn-deploy');
-
-        if (!phone || !script) return toast.show('Phone number and script cannot be blank.', 'error');
-
-        AppState.phone = phone;
-        if(btn) btn.classList.add('loading');
-
-        try {
-            const response = await fetch('/api/deploy/initiate', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ phone: phone, script: script })
-            });
-            const data = await response.json();
-            if(btn) btn.classList.remove('loading');
-
-            if (data.status === 'awaiting_otp') {
-                document.getElementById('otp-phone-display').innerText = `Verification code sent to ${phone}.`;
-                this.goBack('step1-script', 'step2-otp');
-                toast.show('Awaiting Telegram code.');
-            } else {
-                toast.show(data.message || 'Server error initiating session.', 'error');
-            }
-        } catch (err) {
-            if(btn) btn.classList.remove('loading');
-            toast.show('Network failure.', 'error');
-        }
+    goBack: (currentId, targetId) => {
+        document.getElementById(currentId).classList.add('hidden');
+        document.getElementById(targetId).classList.remove('hidden');
     },
 
-    async nextToPassword() {
-        const otpCode = document.getElementById('otpInput').value.trim();
-        const btn = document.getElementById('btn-otp');
-        if (otpCode.length < 4) return toast.show('Invalid code length.', 'error');
-
-        if(btn) btn.classList.add('loading');
-
-        try {
-            const response = await fetch('/api/deploy/verify-otp', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ phone: AppState.phone, code: otpCode })
-            });
-            const data = await response.json();
-            if(btn) btn.classList.remove('loading');
-
-            if (data.status === 'awaiting_2fa') {
-                this.goBack('step2-otp', 'step3-password');
-                toast.show('2FA detected. Password required.');
-            } else if (data.status === 'deployed') {
-                this.handleSuccessfulDeployment();
-            } else {
-                toast.show(data.message || 'OTP failed.', 'error');
-            }
-        } catch (err) {
-            if(btn) btn.classList.remove('loading');
-            toast.show('Network failure.', 'error');
-        }
-    },
-
-    handleSuccessfulDeployment() {
-        document.getElementById('step2-otp').classList.add('hidden');
-        document.getElementById('step3-password').classList.add('hidden');
-        document.getElementById('step4-success').classList.remove('hidden');
+    nextToOTP: () => {
+        const phone = document.getElementById('phoneInput').value;
+        const script = document.getElementById('scriptInput').value;
         
-        const fileName = document.getElementById('filename-display').innerText || 'Custom_Script.py';
-        const safeId = AppState.phone.replace(/[^0-9]/g, ''); 
+        if (!phone || phone.length < 5) return uiEngine.showToast('Please enter a valid Telegram number.', 'error');
+        if (!script) return uiEngine.showToast('Code engine requires a script to compile.', 'error');
+
+        state.phoneNumber = phone;
+        uiEngine.setLoading('btn-deploy', true);
         
-        AppState.activeBots[safeId] = { phoneKey: AppState.phone, name: fileName, status: 'Running', uptime: '0m', ram: 'Pending...' };
-        this.syncBotListUI();
-        toast.show('Userbot activated successfully!', 'success');
+        // Simulate Network Request
+        setTimeout(() => {
+            uiEngine.setLoading('btn-deploy', false);
+            document.getElementById('otp-phone-display').textContent = `Verification dispatched to ${phone}`;
+            deployFlow.goBack('step1-script', 'step2-otp');
+            uiEngine.showToast('Handshake initiated.', 'info');
+        }, 1500);
     },
 
-    goBack(hideId, showId) {
-        document.getElementById(hideId).classList.add('hidden');
-        document.getElementById(showId).classList.remove('hidden');
+    nextToPassword: () => {
+        const otp = document.getElementById('otpInput').value;
+        if (!otp || otp.length < 5) return uiEngine.showToast('Invalid OTP token length.', 'error');
+
+        uiEngine.setLoading('btn-otp', true);
+        setTimeout(() => {
+            uiEngine.setLoading('btn-otp', false);
+            deployFlow.goBack('step2-otp', 'step3-password');
+        }, 1200);
     },
 
-    reset() {
-        this.goBack('step4-success', 'step1-script');
-        document.getElementById('phoneInput').value = '';
-        document.getElementById('otpInput').value = '';
-        document.getElementById('passwordInput').value = '';
-    },
-
-    syncBotListUI() {
-        const container = document.getElementById('bots-list-container');
-        const badge = document.getElementById('bot-count-badge');
-        if (!container) return;
-        
-        let onlineCount = 0; let totalCount = 0; let html = '';
-
-        for (const [id, bot] of Object.entries(AppState.activeBots)) {
-            totalCount++;
-            const isRunning = bot.status === 'Running';
-            if (isRunning) onlineCount++;
-
-            html += `
-            <div class="file-item" id="bot-${id}">
-                <div class="file-info-header">
-                    <div>
-                        <div class="file-name" style="${isRunning ? '' : 'color: #94a3b8;'}">${bot.name}</div>
-                        <div class="file-status">${isRunning ? 'Container Active' : 'Process Interrupted'} • Allocated: ${bot.ram}</div>
-                    </div>
-                    <span class="status-dot ${isRunning ? 'green pulse' : 'red'}">●</span>
-                </div>
-                <div class="file-actions">
-                    <button class="action-btn" onclick="terminal.open('${bot.phoneKey}', '${bot.name}')">📝 Logs</button>
-                    ${isRunning ? 
-                        `<button class="action-btn danger" onclick="botControl.stop('${id}')">⏹ Terminate</button>` :
-                        `<button class="action-btn danger" onclick="botControl.delete('${id}')">🗑 Wipe</button>`
-                    }
-                </div>
-            </div>`;
-        }
-
-        if (totalCount === 0) {
-            html = `<p class="status-text text-center mt-20">No active processes found. Deploy a script to start.</p>`;
-        }
-
-        container.innerHTML = html;
-        if (badge) {
-            badge.innerText = `🟢 ${onlineCount} Threads Online`;
-            badge.className = onlineCount > 0 ? "badge active-badge" : "badge premium-badge";
-        }
-    }
-};
-
-// --- Process Control Engine ---
-const botControl = {
-    async stop(botId) {
-        const bot = AppState.activeBots[botId];
-        if (!bot) return;
-        toast.show(`Sending termination signal...`);
-        try {
-            const response = await fetch('/api/bot/control', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ phone: bot.phoneKey, action: 'stop' })
-            });
-            const data = await response.json();
-            if (data.status === 'stopped' || data.status === 'error') {
-                AppState.activeBots[botId].status = 'Stopped';
-                AppState.activeBots[botId].ram = '0.0MB';
-                deployFlow.syncBotListUI();
-                toast.show(`Process natively terminated.`, 'error');
-            }
-        } catch (e) { toast.show('Network error', 'error'); }
-    },
-    delete(botId) {
-        if(confirm(`Wipe data contexts for this bot?`)) {
-            delete AppState.activeBots[botId];
-            deployFlow.syncBotListUI();
-            toast.show(`Process wiped from view.`);
-        }
-    }
-};
-
-// --- Live Terminal Logs Engine ---
-window.terminal = {
-    async open(phoneKey, botName) {
-        const terminalModal = document.getElementById('terminal-modal');
-        if(terminalModal) terminalModal.classList.remove('hidden');
-        
-        document.getElementById('terminal-bot-name').innerText = `stdout@${botName}`;
-        const output = document.getElementById('terminal-output');
-        output.innerHTML = `<p style="color: #64748b;">[system] Hooking stdout stream matrix for process: ${botName}...</p>`;
-        
-        try {
-            const response = await fetch('/api/bot/control', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ phone: phoneKey, action: 'logs' })
-            });
-            const data = await response.json();
-            
-            if (data.status === 'success' && data.logs) {
-                const logLines = data.logs.split('\n').filter(l => l.trim() !== '');
-                let formattedHtml = '';
-                logLines.forEach(line => { formattedHtml += `<p><span style="color: #a7f3d0;">${line}</span></p>`; });
-                output.innerHTML += formattedHtml;
-            } else {
-                output.innerHTML += `<p style="color: var(--sys-yellow);">[warn] Log file is empty or unreadable.</p>`;
-            }
-        } catch (e) {
-            output.innerHTML += `<p style="color: var(--sys-red);">[error] Network interrupt: Unable to fetch live logs.</p>`;
-        }
-        output.scrollTop = output.scrollHeight;
-    },
-    close() { 
-        const terminalModal = document.getElementById('terminal-modal');
-        if(terminalModal) terminalModal.classList.add('hidden'); 
-    }
-};
-
-// --- Admin Flow ---
-const adminFlow = {
-    verify() {
-        const pass = document.getElementById('adminPassInput').value;
-        const btn = document.getElementById('btn-admin-login');
-        if(btn) btn.classList.add('loading');
+    finalize: () => {
+        uiEngine.setLoading('btn-pass', true);
         
         setTimeout(() => {
-            if(btn) btn.classList.remove('loading');
-            if (pass === 'sid999') {
-                document.getElementById('admin-login-panel').classList.add('hidden');
-                document.getElementById('admin-dash-panel').classList.remove('hidden');
-                document.getElementById('adminPassInput').value = '';
-                toast.show('Root access validation confirmed.', 'success');
-            } else {
-                toast.show('Access Denied.', 'error');
-            }
-        }, 1000);
+            uiEngine.setLoading('btn-pass', false);
+            deployFlow.goBack('step3-password', 'step4-success');
+            uiEngine.showToast('Container deployed successfully!', 'success');
+            
+            // Add bot to grid
+            const newBot = {
+                id: Math.random().toString(36).substr(2, 6),
+                name: document.getElementById('filename-display').textContent,
+                phone: state.phoneNumber,
+                status: 'online'
+            };
+            state.bots.push(newBot);
+        }, 2000);
     },
-    logout() {
-        document.getElementById('admin-dash-panel').classList.add('hidden');
-        document.getElementById('admin-login-panel').classList.remove('hidden');
-        toast.show('Tokens securely flushed.');
-    },
-    togglePower(isPowerOn) {
-        const indicator = document.getElementById('server-status-text');
-        const badge = document.getElementById('global-server-badge');
-        if (isPowerOn) {
-            if(indicator) {
-                indicator.style.color = 'var(--sys-green)';
-                indicator.innerHTML = '<span class="pulse status-dot green">●</span>Primary Node Cluster operational';
-            }
-            if(badge) {
-                badge.className = "badge active-badge"; 
-                badge.innerText = "● Engine Online";
-            }
-            toast.show('Hypervisor instances awakened.', 'success');
-        } else {
-            if(indicator) {
-                indicator.style.color = 'var(--sys-red)';
-                indicator.innerHTML = '<span class="status-dot red">●</span>System Offline.';
-            }
-            if(badge) {
-                badge.className = "badge premium-badge"; 
-                badge.innerText = "⏹ Engine Dead";
-            }
-            toast.show('System Warning: Engines killed.', 'error');
-        }
-    },
-    updateGlobalBackground() {
-        const targetUrl = document.getElementById('admin-video-url-input').value.trim();
-        uiEngine.applyVideoSource(targetUrl);
-        const userSettingsInput = document.getElementById('video-url-input');
-        if (userSettingsInput) userSettingsInput.value = targetUrl;
-        toast.show('Global background updated.');
+
+    reset: () => {
+        document.getElementById('phoneInput').value = '';
+        document.getElementById('scriptInput').value = '';
+        document.getElementById('otpInput').value = '';
+        document.getElementById('passwordInput').value = '';
+        
+        document.querySelectorAll('#view-deploy .glass-panel').forEach(p => p.classList.add('hidden'));
+        document.getElementById('step1-script').classList.remove('hidden');
     }
 };
 
-// Expose globals for HTML onclick bindings
-window.nav = nav;
-window.uiEngine = uiEngine;
-window.deployFlow = deployFlow;
-window.botControl = botControl;
-window.adminFlow = adminFlow;
+// --- Bot Management ---
+const botsManager = {
+    renderList: () => {
+        const container = document.getElementById('bots-list-container');
+        const badge = document.getElementById('bot-count-badge');
+        
+        const activeBots = state.bots.filter(b => b.status === 'online').length;
+        badge.textContent = `🟢 ${activeBots} / ${state.bots.length} Threads Online`;
 
-document.addEventListener('DOMContentLoaded', () => {
-    deployFlow.syncBotListUI();
-    hostingEngine.init(); 
-});
+        if (state.bots.length === 0) {
+            container.innerHTML = `<p class="status-text text-center mt-20">No active userbot processes found.</p>`;
+            return;
+        }
+
+        container.innerHTML = '';
+        state.bots.forEach(bot => {
+            const card = document.createElement('div');
+            card.className = 'bot-card';
+            card.innerHTML = `
+                <div class="bot-info">
+                    <h3>${bot.name} <span style="font-size: 0.7rem; color: #888;">[${bot.id}]</span></h3>
+                    <p>${bot.phone} | Status: <span style="color: ${bot.status === 'online' ? '#27c93f' : '#ff5f56'}">${bot.status.toUpperCase()}</span></p>
+                </div>
+                <div class="bot-actions">
+                    <button class="action-btn" onclick="terminal.open('${bot.id}')">📋 Logs</button>
+                    <button class="action-btn ${bot.status === 'online' ? 'danger' : ''}" onclick="botsManager.toggleBot('${bot.id}')">
+                        ${bot.status === 'online' ? '⏹ Stop' : '▶ Start'}
+                    </button>
+                </div>
+            `;
+            container.appendChild(card);
+        });
+    },
+
+    toggleBot: (id) => {
+        const bot = state.bots.find(b => b.id === id);
+        if(bot) {
+            bot.status = bot.status === 'online' ? 'offline' : 'online';
+            uiEngine.showToast(`Process ${bot.id} ${bot.status === 'online' ? 'started' : 'terminated'}.`, bot.status === 'online' ? 'success' : 'error');
+            botsManager.renderList();
+        }
+    }
+};
+
+// --- Admin Controls ---
+const adminFlow = {
+    verify: () => {
+        const val = document.getElementById('adminPassInput').value;
+        if(val === 'admin123' || val !== '') { // Accepts any string for demo
+            uiEngine.setLoading('btn-admin-login', true);
+            setTimeout(() => {
+                uiEngine.setLoading('btn-admin-login', false);
+                document.getElementById('admin-login-panel').classList.add('hidden');
+                document.getElementById('admin-dash-panel').classList.remove('hidden');
+                state.isAdminAuth = true;
+                uiEngine.showToast('Root access granted.', 'success');
+            }, 800);
+        } else {
+            uiEngine.showToast('Invalid system token.', 'error');
+        }
+    },
+
+    togglePower: (isPowerOn) => {
+        const statusText = document.getElementById('server-status-text');
+        const badge = document.getElementById('global-server-badge');
+        
+        if(isPowerOn) {
+            statusText.innerHTML = `<span class="pulse status-dot green" style="display:inline-block; font-size:0.8rem; margin-right:5px; color:#27c93f;">●</span>Primary Node Cluster operational`;
+            statusText.style.color = '#27c93f';
+            badge.textContent = '● Engine Online';
+            badge.style.color = '#27c93f';
+            badge.style.borderColor = '#27c93f';
+            badge.style.background = 'rgba(39, 201, 63, 0.1)';
+            uiEngine.showToast('Master engine booted successfully.', 'success');
+        } else {
+            statusText.innerHTML = `<span class="pulse status-dot red" style="display:inline-block; font-size:0.8rem; margin-right:5px; color:#ff5f56;">●</span>Node cluster offline`;
+            statusText.style.color = '#ff5f56';
+            badge.textContent = '● Engine Offline';
+            badge.style.color = '#ff5f56';
+            badge.style.borderColor = '#ff5f56';
+            badge.style.background = 'rgba(255, 95, 86, 0.1)';
+            uiEngine.showToast('Engine process killed.', 'error');
+        }
+    },
+
+    updateGlobalBackground: () => {
+        const url = document.getElementById('admin-video-url-input').value;
+        if(url) {
+            document.getElementById('bg-video').src = url;
+            uiEngine.showToast('Global broadcast matrix updated.', 'info');
+        }
+    },
+
+    logout: () => {
+        state.isAdminAuth = false;
+        document.getElementById('adminPassInput').value = '';
+        document.getElementById('admin-dash-panel').classList.add('hidden');
+        document.getElementById('admin-login-panel').classList.remove('hidden');
+        uiEngine.showToast('Session tokens wiped.', 'info');
+    }
+};
+
+// --- Terminal Simulator ---
+const terminal = {
+    open: (botId) => {
+        document.getElementById('terminal-modal').classList.remove('hidden');
+        document.getElementById('terminal-bot-name').textContent = `stdout_stream@${botId}`;
+        const output = document.getElementById('terminal-output');
+        output.innerHTML = ''; // Clear previous
+        
+        terminal.writeLog('Container boot initiated...');
+        terminal.writeLog(`Loading Telethon sessions for ${botId}...`);
+        
+        setTimeout(() => terminal.writeLog('INFO: Connected to Telegram API.'), 600);
+        setTimeout(() => terminal.writeLog('INFO: Registering event handlers (events.NewMessage)'), 1200);
+        setTimeout(() => terminal.writeLog('SUCCESS: Userbot daemon is running in background.'), 1800);
+    },
+
+    close: () => {
+        document.getElementById('terminal-modal').classList.add('hidden');
+    },
+
+    writeLog: (message) => {
+        const output = document.getElementById('terminal-output');
+        const time = new Date().toLocaleTimeString();
+        const el = document.createElement('div');
+        el.className = 'terminal-line';
+        el.innerHTML = `<span class="terminal-timestamp">[${time}]</span> ${message}`;
+        output.appendChild(el);
+        output.scrollTop = output.scrollHeight;
+    }
+};
