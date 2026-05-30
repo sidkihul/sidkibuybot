@@ -7,6 +7,8 @@ import time
 import json
 import threading
 import re
+import zipfile
+import shutil
 from flask import Flask, request, jsonify, send_from_directory
 
 # Setup Flask to serve the frontend from the 'webapp' folder natively
@@ -23,16 +25,24 @@ DB_FILE = os.path.join(BASE_DIR, "bots_config.json")
 os.makedirs(SESSION_DIR, exist_ok=True)
 os.makedirs(SCRIPTS_DIR, exist_ok=True)
 
-# --- Add these to your configurations near the top ---
 GLOBAL_CONFIG_FILE = os.path.join(BASE_DIR, "global_config.json")
 UPLOAD_DIR = os.path.join(WEBAPP_DIR, "uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
+# --- Malware Detection Configuration (Integrated from Previous Logic) ---
+MALWARE_SIGNATURES = [
+    b'MZ',  # Windows executable
+    b'\x7fELF',  # Linux executable
+    b'\xfe\xed\xfa',  # Mach-O binary
+    b'\xce\xfa\xed\xfe',  # Mach-O binary (reverse)
+]
+ENCRYPTED_FILE_INDICATORS = [b'openssl', b'encrypted', b'cipher', b'AES', b'DES', b'RSA', b'GPG', b'PGP']
+SUSPICIOUS_KEYWORDS = [b'ransomware', b'trojan', b'virus', b'malware', b'backdoor', b'exploit', b'payload', b'botnet', b'keylogger', b'rootkit']
+
 def get_global_config():
     if os.path.exists(GLOBAL_CONFIG_FILE):
         with open(GLOBAL_CONFIG_FILE, "r") as f:
-            try:
-                return json.load(f)
+            try: return json.load(f)
             except: pass
     return {"bg_video": "https://cdn.pixabay.com/video/2020/05/25/40131-424785461_large.mp4"}
 
@@ -52,10 +62,8 @@ API_HASH = "875fbb273801c8025d05e98173fca536"
 def load_db():
     if os.path.exists(DB_FILE):
         with open(DB_FILE, "r") as f:
-            try:
-                return json.load(f)
-            except json.JSONDecodeError:
-                return {}
+            try: return json.load(f)
+            except json.JSONDecodeError: return {}
     return {}
 
 def save_db(data):
@@ -64,22 +72,36 @@ def save_db(data):
 
 # --- Thread Safe Async Helper ---
 def run_async(coro):
-    """Safely runs Telethon async functions inside synchronous Flask routes."""
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    try:
-        return loop.run_until_complete(coro)
-    finally:
-        loop.close()
+    try: return loop.run_until_complete(coro)
+    finally: loop.close()
+
+# --- Security Scanner ---
+def scan_file_for_malware(file_bytes, file_name):
+    file_lower = file_name.lower()
+    suspicious_extensions = ['.exe', '.dll', '.bat', '.cmd', '.scr', '.com', '.msi', '.apk']
+    
+    if any(file_lower.endswith(ext) for ext in suspicious_extensions):
+        return False, f"Suspicious file extension: {file_name}"
+    
+    for signature in MALWARE_SIGNATURES:
+        if file_bytes.startswith(signature):
+            return False, "Executable binary signature detected."
+            
+    sample_text = file_bytes[:4096].lower()
+    for keyword in SUSPICIOUS_KEYWORDS:
+        if keyword in sample_text:
+            return False, "Suspicious keyword found in source code."
+            
+    return True, "Safe"
 
 # --- Robust Process Management Engine ---
 def kill_process_tree(process_info):
-    """Safely terminate a process and its children, preventing memory leaks."""
     pid = None
     try:
         if 'log_file' in process_info and hasattr(process_info['log_file'], 'close') and not process_info['log_file'].closed:
-            try:
-                process_info['log_file'].close()
+            try: process_info['log_file'].close()
             except Exception: pass
 
         process = process_info.get('process')
@@ -100,15 +122,13 @@ def kill_process_tree(process_info):
                 try:
                     parent.terminate()
                     parent.wait(timeout=1)
-                except psutil.TimeoutExpired:
-                    parent.kill()
+                except psutil.TimeoutExpired: parent.kill()
                 except psutil.NoSuchProcess: pass
             except psutil.NoSuchProcess: pass
     except Exception as e:
         print(f"Error killing process {pid}: {e}")
 
 def trigger_deployment(phone_key, script_file_path, session_path, ext, custom_env_vars=None):
-    """Deploys a script as a subprocess and registers it in the DB for 24/7 execution."""
     log_path = f"{script_file_path}.log"
     log_file_handle = open(log_path, "w", encoding="utf-8")
     executable = "node" if ext == ".js" else sys.executable
@@ -119,7 +139,6 @@ def trigger_deployment(phone_key, script_file_path, session_path, ext, custom_en
         startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
         startupinfo.wShowWindow = subprocess.SW_HIDE
 
-    # Inject default and user-defined environment variables
     custom_env = os.environ.copy()
     custom_env["TELEGRAM_SESSION_PATH"] = session_path
     custom_env["API_ID"] = str(API_ID)
@@ -129,10 +148,13 @@ def trigger_deployment(phone_key, script_file_path, session_path, ext, custom_en
         for k, v in custom_env_vars.items():
             custom_env[str(k)] = str(v)
 
+    cwd = os.path.dirname(script_file_path)
+
     proc = subprocess.Popen(
-        [executable, "-u", script_file_path], 
+        [executable, "-u", os.path.basename(script_file_path)], 
         stdout=log_file_handle, 
         stderr=subprocess.STDOUT,
+        cwd=cwd,
         startupinfo=startupinfo,
         env=custom_env
     )
@@ -145,7 +167,6 @@ def trigger_deployment(phone_key, script_file_path, session_path, ext, custom_en
         'target_state': 'running'
     }
 
-    # Save to persistent database so it survives server reboots
     db = load_db()
     db[phone_key] = {
         "script_path": script_file_path,
@@ -155,9 +176,7 @@ def trigger_deployment(phone_key, script_file_path, session_path, ext, custom_en
     }
     save_db(db)
 
-# --- Background Auto-Recovery Engine (24/7 Support) ---
 def auto_recovery_worker():
-    """Background thread to monitor and restart unexpectedly crashed bots."""
     while True:
         time.sleep(30)
         db = load_db()
@@ -180,49 +199,33 @@ threading.Thread(target=auto_recovery_worker, daemon=True).start()
 
 # --- Web Server Routes ---
 @app.route('/')
-def serve_homepage():
-    return send_from_directory(WEBAPP_DIR, 'index.html')
+def serve_homepage(): return send_from_directory(WEBAPP_DIR, 'index.html')
 
 @app.route('/css/<path:path>')
-def serve_css(path):
-    return send_from_directory(os.path.join(WEBAPP_DIR, 'css'), path)
+def serve_css(path): return send_from_directory(os.path.join(WEBAPP_DIR, 'css'), path)
 
 @app.route('/js/<path:path>')
-def serve_js(path):
-    return send_from_directory(os.path.join(WEBAPP_DIR, 'js'), path)
+def serve_js(path): return send_from_directory(os.path.join(WEBAPP_DIR, 'js'), path)
 
 # --- API Endpoints ---
-
 @app.route('/api/config', methods=['GET'])
-def get_config():
-    """Fetches the global server config (like background video) on page load."""
-    return jsonify(get_global_config())
+def get_config(): return jsonify(get_global_config())
 
 @app.route('/api/admin/upload-bg', methods=['POST'])
 def admin_upload_bg():
-    """Allows admin to upload a physical video file to serve as the global background."""
-    if 'file' not in request.files:
-        return jsonify({"status": "error", "message": "No file provided"}), 400
-    
+    if 'file' not in request.files: return jsonify({"status": "error", "message": "No file provided"}), 400
     file = request.files['file']
-    if file.filename == '':
-        return jsonify({"status": "error", "message": "No selected file"}), 400
-    
-    # Save the file to the webapp/uploads directory
+    if file.filename == '': return jsonify({"status": "error", "message": "No selected file"}), 400
     filename = "global_bg.mp4"
     filepath = os.path.join(UPLOAD_DIR, filename)
     file.save(filepath)
-    
-    # Update global config with a timestamp to bust the browser cache
     config = get_global_config()
     config['bg_video'] = f"uploads/{filename}?t={int(time.time())}"
     save_global_config(config)
-    
     return jsonify({"status": "success", "url": config['bg_video']})
 
 @app.route('/api/admin/set-bg-url', methods=['POST'])
 def admin_set_bg_url():
-    """Allows admin to set a web URL as the global background."""
     data = request.json or {}
     url = data.get("url")
     if url:
@@ -244,12 +247,13 @@ def initiate_handshake():
 
     safe_phone = "".join(c for c in phone if c.isalnum() or c in "+")
     ext = ".js" if "console.log" in script_code or "require(" in script_code else ".py"
-    script_path = os.path.join(SCRIPTS_DIR, f"{safe_phone}_main{ext}")
+    
+    app_dir = os.path.join(SCRIPTS_DIR, f"{safe_phone}_app")
+    os.makedirs(app_dir, exist_ok=True)
+    script_path = os.path.join(app_dir, f"main{ext}")
     session_path = os.path.join(SESSION_DIR, f"sess_{safe_phone}")
     
-    # --- AUTO-PATCHER: Force the user's script to use the verified session file ---
     if ext == ".py":
-        # Finds TelegramClient('any_name'...) and replaces the session name with our absolute path
         script_code = re.sub(
             r"TelegramClient\s*\(\s*['\"][^'\"]+['\"]",
             f"TelegramClient(r'{session_path}'",
@@ -262,19 +266,23 @@ def initiate_handshake():
     async def request_code():
         from telethon import TelegramClient
         from telethon.errors import FloodWaitError
-        # Device details help prevent Telegram from flagging the login as suspicious
-        client = TelegramClient(session_path, API_ID, API_HASH, device_model="Cloud Node", system_version="Ubuntu 22.04", app_version="1.0")
+        # OTP FIX: Spoof Windows Desktop client to ensure OTP delivery to Telegram app
+        client = TelegramClient(
+            session_path, API_ID, API_HASH, 
+            device_model="Desktop", 
+            system_version="Windows 10", 
+            app_version="4.14.0",
+            lang_code="en",
+            system_lang_code="en"
+        )
         await client.connect()
         try:
             code_hash_ref = await client.send_code_request(phone)
-            await client.disconnect()
             return code_hash_ref.phone_code_hash
         except FloodWaitError as e:
-            await client.disconnect()
             raise Exception(f"Telegram rate limited this number. Wait {e.seconds} seconds.")
-        except Exception as e:
+        finally:
             await client.disconnect()
-            raise e
 
     try:
         phone_code_hash = run_async(request_code())
@@ -285,7 +293,7 @@ def initiate_handshake():
             "ext": ext,
             "env_vars": env_vars
         }
-        return jsonify({"status": "awaiting_otp", "message": "OTP requested. Please check the official Telegram app (not SMS)."})
+        return jsonify({"status": "awaiting_otp", "message": "OTP requested. Please check the official Telegram app."})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
@@ -303,29 +311,98 @@ def handle_file_upload():
         return jsonify({"status": "error", "message": "No selected file"}), 400
 
     safe_phone = "".join(c for c in phone if c.isalnum() or c in "+")
-    ext = ".js" if file.filename.endswith(".js") else ".py"
-    script_path = os.path.join(SCRIPTS_DIR, f"{safe_phone}_main{ext}")
-    session_path = os.path.join(SESSION_DIR, f"sess_{safe_phone}")
     
-    # Read file content to apply the auto-patcher
-    script_code = file.read().decode('utf-8')
-    if ext == ".py":
-        script_code = re.sub(
-            r"TelegramClient\s*\(\s*['\"][^'\"]+['\"]",
-            f"TelegramClient(r'{session_path}'",
-            script_code
-        )
+    file_bytes = file.read()
+    is_safe, reason = scan_file_for_malware(file_bytes, file.filename)
+    if not is_safe:
+        return jsonify({"status": "error", "message": f"Security Alert: {reason}"}), 400
+
+    app_dir = os.path.join(SCRIPTS_DIR, f"{safe_phone}_app")
+    if os.path.exists(app_dir): shutil.rmtree(app_dir)
+    os.makedirs(app_dir, exist_ok=True)
+    
+    session_path = os.path.join(SESSION_DIR, f"sess_{safe_phone}")
+
+    # --- ZIP Logic Integration ---
+    if file.filename.endswith(".zip"):
+        zip_path = os.path.join(app_dir, file.filename)
+        with open(zip_path, "wb") as f:
+            f.write(file_bytes)
+            
+        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+            zip_ref.extractall(app_dir)
+        os.remove(zip_path)
+
+        # Directory Flattening
+        target_dir = app_dir
+        root_files = os.listdir(app_dir)
+        if not any(f.endswith(('.py', '.js')) for f in root_files):
+            for root, dirs, files in os.walk(app_dir):
+                dirs[:] = [d for d in dirs if not d.startswith('.') and not d.startswith('__')]
+                if any(f.endswith(('.py', '.js')) for f in files):
+                    target_dir = root
+                    break
         
-    with open(script_path, "w", encoding="utf-8") as f:
-        f.write(script_code)
+        if target_dir != app_dir:
+            for item in os.listdir(target_dir):
+                shutil.move(os.path.join(target_dir, item), os.path.join(app_dir, item))
+
+        extracted_items = os.listdir(app_dir)
+        
+        # Dependency Auto-Install
+        if 'requirements.txt' in extracted_items:
+            subprocess.run([sys.executable, '-m', 'pip', 'install', '-r', 'requirements.txt'], cwd=app_dir)
+        if 'package.json' in extracted_items:
+            subprocess.run(['npm', 'install'], cwd=app_dir)
+
+        # Detect Main Script
+        preferred = ['main.py', 'bot.py', 'app.py', 'index.js', 'main.js', 'bot.js']
+        main_script_name = next((p for p in preferred if p in extracted_items), None)
+        
+        if not main_script_name:
+            py_files = [f for f in extracted_items if f.endswith('.py')]
+            js_files = [f for f in extracted_items if f.endswith('.js')]
+            if py_files: main_script_name = py_files[0]
+            elif js_files: main_script_name = js_files[0]
+            else: return jsonify({"status": "error", "message": "No .py or .js entry file found in ZIP."}), 400
+
+        ext = os.path.splitext(main_script_name)[1]
+        script_path = os.path.join(app_dir, main_script_name)
+
+        if ext == ".py":
+            with open(script_path, "r", encoding="utf-8") as f: code = f.read()
+            code = re.sub(r"TelegramClient\s*\(\s*['\"][^'\"]+['\"]", f"TelegramClient(r'{session_path}'", code)
+            with open(script_path, "w", encoding="utf-8") as f: f.write(code)
+
+    else:
+        # Standard Single File Upload
+        ext = ".js" if file.filename.endswith(".js") else ".py"
+        script_path = os.path.join(app_dir, f"main{ext}")
+        script_code = file_bytes.decode('utf-8', errors='ignore')
+        
+        if ext == ".py":
+            script_code = re.sub(r"TelegramClient\s*\(\s*['\"][^'\"]+['\"]", f"TelegramClient(r'{session_path}'", script_code)
+            
+        with open(script_path, "w", encoding="utf-8") as f:
+            f.write(script_code)
 
     async def request_code():
         from telethon import TelegramClient
-        client = TelegramClient(session_path, API_ID, API_HASH, device_model="Cloud Node")
+        # OTP FIX Applied here as well
+        client = TelegramClient(
+            session_path, API_ID, API_HASH, 
+            device_model="Desktop", 
+            system_version="Windows 10", 
+            app_version="4.14.0",
+            lang_code="en",
+            system_lang_code="en"
+        )
         await client.connect()
-        code_hash_ref = await client.send_code_request(phone)
-        await client.disconnect()
-        return code_hash_ref.phone_code_hash
+        try:
+            code_hash_ref = await client.send_code_request(phone)
+            return code_hash_ref.phone_code_hash
+        finally:
+            await client.disconnect()
 
     try:
         phone_code_hash = run_async(request_code())
@@ -359,17 +436,13 @@ def verify_otp_challenge():
         await client.connect()
         try:
             await client.sign_in(phone=phone, code=otp_code, phone_code_hash=handshake["phone_code_hash"])
-            await client.disconnect()
             return "deployed"
         except SessionPasswordNeededError:
-            await client.disconnect()
             return "awaiting_2fa"
         except (PhoneCodeInvalidError, PhoneCodeExpiredError) as e:
-            await client.disconnect()
             raise Exception("Invalid or expired OTP.")
-        except Exception as e:
+        finally:
             await client.disconnect()
-            raise e
 
     try:
         result = run_async(verify_code())
@@ -400,10 +473,10 @@ def finalize_cloud_password():
         await client.connect()
         try:
             await client.sign_in(password=password)
-            await client.disconnect()
         except PasswordHashInvalidError:
-            await client.disconnect()
             raise Exception("Incorrect Cloud Password.")
+        finally:
+            await client.disconnect()
 
     try:
         run_async(verify_2fa())
@@ -477,17 +550,15 @@ def control_threads():
         del db[safe_phone]
         save_db(db)
         
-        for file_path in [config.get("script_path"), f"{config.get('script_path')}.log", f"{config.get('session_path')}.session"]:
-            if file_path and os.path.exists(file_path):
-                os.remove(file_path)
+        app_dir = os.path.dirname(config.get("script_path"))
+        if os.path.exists(app_dir): shutil.rmtree(app_dir)
+        if os.path.exists(f"{config.get('session_path')}.session"):
+            os.remove(f"{config.get('session_path')}.session")
                 
         return jsonify({"status": "success", "message": "Bot deleted and wiped from server."})
         
     elif action == "logs":
-        log_path = os.path.join(SCRIPTS_DIR, f"{safe_phone}_main.py.log")
-        if not os.path.exists(log_path):
-            log_path = os.path.join(SCRIPTS_DIR, f"{safe_phone}_main.js.log")
-            
+        log_path = f"{config.get('script_path', '')}.log"
         if os.path.exists(log_path):
             with open(log_path, "r", encoding="utf-8") as f:
                 lines = f.readlines()[-100:] 
@@ -510,7 +581,6 @@ def get_admin_stats():
     })
 
 def initialize_saved_bots():
-    """Boots up all bots stored in the database on server start."""
     print("[System] Checking for previously deployed bots...")
     db = load_db()
     for phone_key, config in db.items():
