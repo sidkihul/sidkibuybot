@@ -23,6 +23,23 @@ DB_FILE = os.path.join(BASE_DIR, "bots_config.json")
 os.makedirs(SESSION_DIR, exist_ok=True)
 os.makedirs(SCRIPTS_DIR, exist_ok=True)
 
+# --- Add these to your configurations near the top ---
+GLOBAL_CONFIG_FILE = os.path.join(BASE_DIR, "global_config.json")
+UPLOAD_DIR = os.path.join(WEBAPP_DIR, "uploads")
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+def get_global_config():
+    if os.path.exists(GLOBAL_CONFIG_FILE):
+        with open(GLOBAL_CONFIG_FILE, "r") as f:
+            try:
+                return json.load(f)
+            except: pass
+    return {"bg_video": "https://cdn.pixabay.com/video/2020/05/25/40131-424785461_large.mp4"}
+
+def save_global_config(data):
+    with open(GLOBAL_CONFIG_FILE, "w") as f:
+        json.dump(data, f)
+
 # Application state dictionaries
 ACTIVE_PROCESSES = {}
 PENDING_HANDSHAKES = {}
@@ -175,6 +192,45 @@ def serve_js(path):
     return send_from_directory(os.path.join(WEBAPP_DIR, 'js'), path)
 
 # --- API Endpoints ---
+
+@app.route('/api/config', methods=['GET'])
+def get_config():
+    """Fetches the global server config (like background video) on page load."""
+    return jsonify(get_global_config())
+
+@app.route('/api/admin/upload-bg', methods=['POST'])
+def admin_upload_bg():
+    """Allows admin to upload a physical video file to serve as the global background."""
+    if 'file' not in request.files:
+        return jsonify({"status": "error", "message": "No file provided"}), 400
+    
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({"status": "error", "message": "No selected file"}), 400
+    
+    # Save the file to the webapp/uploads directory
+    filename = "global_bg.mp4"
+    filepath = os.path.join(UPLOAD_DIR, filename)
+    file.save(filepath)
+    
+    # Update global config with a timestamp to bust the browser cache
+    config = get_global_config()
+    config['bg_video'] = f"uploads/{filename}?t={int(time.time())}"
+    save_global_config(config)
+    
+    return jsonify({"status": "success", "url": config['bg_video']})
+
+@app.route('/api/admin/set-bg-url', methods=['POST'])
+def admin_set_bg_url():
+    """Allows admin to set a web URL as the global background."""
+    data = request.json or {}
+    url = data.get("url")
+    if url:
+        config = get_global_config()
+        config['bg_video'] = url
+        save_global_config(config)
+        return jsonify({"status": "success", "url": url})
+    return jsonify({"status": "error", "message": "No URL provided"}), 400
 
 @app.route('/api/deploy/initiate', methods=['POST'])
 def initiate_handshake():
