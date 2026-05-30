@@ -22,7 +22,7 @@
         <div id="view-deploy" class="view-section active">
             <div class="glass-panel" id="step1-script">
                 <div class="panel-header">
-                    <h2 class="gradient-text">Cloud Deployment Engine</h2>
+                    <h2 class="gradient-text">User Bot Hosting</h2>
                     <span class="badge premium-badge" style="font-size: 0.7rem; background: rgba(0, 242, 254, 0.1); border: 1px solid #00f2fe; padding: 4px 8px; border-radius: 12px; color: #00f2fe;">Node v4.1</span>
                 </div>
                 <p class="status-text">Enter your phone number connected to Telegram and write or upload your specialized userbot script.</p>
@@ -44,14 +44,14 @@
                     <input type="file" id="fileUpload" accept=".py,.txt,.js" style="display: none;" onchange="deployFlow.handleFileUpload(event)">
                     <button class="secondary-btn btn-animate" onclick="document.getElementById('fileUpload').click()">📤 Upload Script</button>
                     <button class="primary-btn btn-animate" id="btn-deploy" onclick="deployFlow.nextToOTP()">
-                        <span class="btn-text">Connect Cloud Node</span>
+                        <span class="btn-text">Connect Server</span>
                         <div class="spinner"></div>
                     </button>
                 </div>
             </div>
 
             <div class="glass-panel hidden" id="step2-otp">
-                <div class="panel-header"><h2 class="gradient-text">Verify Node Handshake</h2></div>
+                <div class="panel-header"><h2 class="gradient-text">Verify Otp Handshake</h2></div>
                 <p class="status-text target-phone" id="otp-phone-display">A verification code has been dispatched to your active Telegram application.</p>
                 <div class="input-group text-center">
                     <label class="field-label" style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 5px; display: block;">Telegram Login Code</label>
@@ -68,7 +68,7 @@
                 <div class="panel-header"><h2 class="gradient-text">Two-Step Verification</h2></div>
                 <p class="status-text">Your Telegram account requires a Cloud Password (2FA) to safely sign and encrypt the session.</p>
                 <div class="input-group text-center">
-                    <label class="field-label" style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 5px; display: block;">Telegram Cloud Password</label>
+                    <label class="field-label" style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 5px; display: block;">Telegram Password</label>
                     <input type="password" id="passwordInput" class="glass-input text-center" placeholder="••••••••••••">
                 </div>
                 <button class="primary-btn btn-animate" id="btn-pass" onclick="deployFlow.finalize()">
