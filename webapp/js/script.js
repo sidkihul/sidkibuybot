@@ -1,3 +1,15 @@
+// --- 1. Add this at the very top of your script.js ---
+// This ensures that when ANY user loads the site, it fetches the global background
+document.addEventListener('DOMContentLoaded', () => {
+    fetch('/api/config')
+        .then(res => res.json())
+        .then(data => {
+            if(data.bg_video) {
+                document.getElementById('bg-video').src = data.bg_video;
+            }
+        }).catch(console.error);
+});
+
 // --- Global Utilities & State ---
 const state = {
     bots: [],
@@ -311,12 +323,63 @@ const adminFlow = {
         }
     },
 
-    updateGlobalBackground: () => {
-        const url = document.getElementById('admin-video-url-input').value;
-        if(url) {
-            document.getElementById('bg-video').src = url;
-            uiEngine.showToast('Global broadcast matrix updated.', 'info');
+    // --- NEW ADMIN OVERRIDE FUNCTIONS ADDED HERE ---
+    uploadGlobalBackground: (event) => {
+        const file = event.target.files[0];
+        if(!file) return;
+
+        if(!file.type.startsWith('video/')) {
+            return uiEngine.showToast('Please select a valid video file.', 'error');
         }
+
+        uiEngine.showToast('Uploading to global server...', 'info');
+        
+        const formData = new FormData();
+        formData.append('file', file);
+
+        fetch('/api/admin/upload-bg', {
+            method: 'POST',
+            body: formData
+        })
+        .then(res => res.json())
+        .then(data => {
+            if(data.status === 'success') {
+                const videoElement = document.getElementById('bg-video');
+                videoElement.style.opacity = 0;
+                setTimeout(() => {
+                    videoElement.src = data.url;
+                    videoElement.play();
+                    videoElement.style.opacity = 1;
+                    uiEngine.showToast('Global background broadcasted to all users!', 'success');
+                }, 500);
+            } else {
+                uiEngine.showToast(data.message, 'error');
+            }
+        }).catch(e => uiEngine.showToast('Upload failed.', 'error'));
+    },
+
+    updateGlobalBackgroundURL: () => {
+        const url = document.getElementById('admin-video-url-input').value;
+        if(!url) return uiEngine.showToast('Please enter a valid URL', 'error');
+
+        fetch('/api/admin/set-bg-url', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url: url })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if(data.status === 'success') {
+                const videoElement = document.getElementById('bg-video');
+                videoElement.style.opacity = 0;
+                setTimeout(() => {
+                    videoElement.src = data.url;
+                    videoElement.play();
+                    videoElement.style.opacity = 1;
+                    uiEngine.showToast('Global background URL updated!', 'success');
+                }, 500);
+            }
+        });
     },
 
     logout: () => {
