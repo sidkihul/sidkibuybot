@@ -1,4 +1,3 @@
-// --- 1. Add this at the very top of your script.js ---
 // This ensures that when ANY user loads the site, it fetches the global background
 document.addEventListener('DOMContentLoaded', () => {
     fetch('/api/config')
@@ -8,6 +7,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('bg-video').src = data.bg_video;
             }
         }).catch(console.error);
+        
+    // Start polling bot statuses from the backend
+    setInterval(botsManager.pollServerStatus, 5000);
+    botsManager.pollServerStatus();
 });
 
 // --- Global Utilities & State ---
@@ -16,7 +19,8 @@ const state = {
     phoneNumber: '',
     isAdminAuth: false,
     walletBalance: 0,
-    serverPower: true
+    serverPower: true,
+    uploadedFile: null // Added to track actual ZIP/JS/PY files for backend
 };
 
 const uiEngine = {
@@ -65,20 +69,17 @@ const uiEngine = {
 // --- Navigation ---
 const nav = {
     switchTab: (viewId, element) => {
-        // Hide all views completely
         document.querySelectorAll('.view-section').forEach(el => {
             el.classList.remove('active');
             el.classList.add('hidden');
         });
         
-        // Show the targeted view
         const targetView = document.getElementById(viewId);
         if (targetView) {
             targetView.classList.remove('hidden');
             targetView.classList.add('active');
         }
         
-        // Update Bottom Nav Highlighting
         document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
         if(element) {
             element.classList.add('active');
@@ -89,25 +90,30 @@ const nav = {
             }
         }
 
-        // Trigger view-specific logic
         if(viewId === 'view-files') botsManager.renderList();
         if(viewId === 'view-admin' && state.isAdminAuth) adminFlow.simulateLiveStats();
     }
 };
 
-// --- Deployment Flow ---
+// --- Deployment Flow (Wired to Python API) ---
 const deployFlow = {
     handleFileUpload: (e) => {
         const file = e.target.files[0];
         if(!file) return;
         
-        const reader = new FileReader();
-        reader.onload = function(evt) {
-            document.getElementById('scriptInput').value = evt.target.result;
-            document.getElementById('filename-display').textContent = file.name;
-            uiEngine.showToast('Script loaded securely.', 'success');
-        };
-        reader.readAsText(file);
+        state.uploadedFile = file; // Save physical file for backend upload
+        document.getElementById('filename-display').textContent = file.name;
+        
+        if(!file.name.endsWith('.zip')) {
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                document.getElementById('scriptInput').value = evt.target.result;
+            };
+            reader.readAsText(file);
+        } else {
+            document.getElementById('scriptInput').value = "[ZIP Archive loaded securely for backend extraction]";
+        }
+        uiEngine.showToast('File loaded securely.', 'success');
     },
 
     goBack: (currentId, targetId) => {
@@ -120,17 +126,43 @@ const deployFlow = {
         const script = document.getElementById('scriptInput').value;
         
         if (!phone || phone.length < 5) return uiEngine.showToast('Please enter a valid Telegram number.', 'error');
-        if (!script) return uiEngine.showToast('Code engine requires a script to compile.', 'error');
+        if (!script && !state.uploadedFile) return uiEngine.showToast('Code engine requires a script to compile.', 'error');
 
         state.phoneNumber = phone;
         uiEngine.setLoading('btn-deploy', true);
         
-        setTimeout(() => {
-            uiEngine.setLoading('btn-deploy', false);
-            document.getElementById('otp-phone-display').textContent = `Verification dispatched to ${phone}`;
-            deployFlow.goBack('step1-script', 'step2-otp');
-            uiEngine.showToast('Handshake initiated.', 'info');
-        }, 1500);
+        // Decide whether to send raw JSON text or a File via FormData to the Python backend
+        let fetchPromise;
+        if (state.uploadedFile) {
+            const formData = new FormData();
+            formData.append('file', state.uploadedFile);
+            formData.append('phone', phone);
+            
+            fetchPromise = fetch('/api/deploy/upload', { method: 'POST', body: formData });
+        } else {
+            fetchPromise = fetch('/api/deploy/initiate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ phone: phone, script: script })
+            });
+        }
+
+        fetchPromise
+            .then(res => res.json())
+            .then(data => {
+                uiEngine.setLoading('btn-deploy', false);
+                if(data.status === 'awaiting_otp') {
+                    document.getElementById('otp-phone-display').textContent = `Verification dispatched to ${phone}`;
+                    deployFlow.goBack('step1-script', 'step2-otp');
+                    uiEngine.showToast(data.message, 'info');
+                } else {
+                    uiEngine.showToast(data.message, 'error');
+                }
+            })
+            .catch(err => {
+                uiEngine.setLoading('btn-deploy', false);
+                uiEngine.showToast('Server communication failed.', 'error');
+            });
     },
 
     nextToPassword: () => {
@@ -138,28 +170,54 @@ const deployFlow = {
         if (!otp || otp.length < 5) return uiEngine.showToast('Invalid OTP token length.', 'error');
 
         uiEngine.setLoading('btn-otp', true);
-        setTimeout(() => {
+        
+        fetch('/api/deploy/verify-otp', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ phone: state.phoneNumber, code: otp })
+        })
+        .then(res => res.json())
+        .then(data => {
             uiEngine.setLoading('btn-otp', false);
-            deployFlow.goBack('step2-otp', 'step3-password');
-        }, 1200);
+            if(data.status === 'awaiting_2fa') {
+                deployFlow.goBack('step2-otp', 'step3-password');
+                uiEngine.showToast('Cloud password required.', 'warning');
+            } else if (data.status === 'deployed') {
+                deployFlow.goBack('step2-otp', 'step4-success');
+                uiEngine.showToast('Container deployed successfully!', 'success');
+                botsManager.pollServerStatus(); // Refresh UI instantly
+            } else {
+                uiEngine.showToast(data.message, 'error');
+            }
+        }).catch(err => {
+            uiEngine.setLoading('btn-otp', false);
+            uiEngine.showToast('OTP verification failed.', 'error');
+        });
     },
 
     finalize: () => {
+        const pass = document.getElementById('passwordInput').value;
         uiEngine.setLoading('btn-pass', true);
         
-        setTimeout(() => {
+        fetch('/api/deploy/finalize', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ phone: state.phoneNumber, password: pass })
+        })
+        .then(res => res.json())
+        .then(data => {
             uiEngine.setLoading('btn-pass', false);
-            deployFlow.goBack('step3-password', 'step4-success');
-            uiEngine.showToast('Container deployed successfully!', 'success');
-            
-            const newBot = {
-                id: Math.random().toString(36).substr(2, 6).toUpperCase(),
-                name: document.getElementById('filename-display').textContent,
-                phone: state.phoneNumber,
-                status: 'online'
-            };
-            state.bots.push(newBot);
-        }, 2000);
+            if (data.status === 'deployed') {
+                deployFlow.goBack('step3-password', 'step4-success');
+                uiEngine.showToast('Container deployed successfully!', 'success');
+                botsManager.pollServerStatus();
+            } else {
+                uiEngine.showToast(data.message, 'error');
+            }
+        }).catch(err => {
+            uiEngine.setLoading('btn-pass', false);
+            uiEngine.showToast('2FA verification failed.', 'error');
+        });
     },
 
     reset: () => {
@@ -167,14 +225,37 @@ const deployFlow = {
         document.getElementById('scriptInput').value = '';
         document.getElementById('otpInput').value = '';
         document.getElementById('passwordInput').value = '';
+        document.getElementById('filename-display').textContent = 'No file selected';
+        state.uploadedFile = null;
         
         document.querySelectorAll('#view-deploy .glass-panel').forEach(p => p.classList.add('hidden'));
         document.getElementById('step1-script').classList.remove('hidden');
     }
 };
 
-// --- Bot Management ---
+// --- Bot Management (Wired to Python API) ---
 const botsManager = {
+    pollServerStatus: () => {
+        fetch('/api/bot/status')
+            .then(res => res.json())
+            .then(data => {
+                if(data.status === 'success') {
+                    // Map Python response format to your frontend format
+                    state.bots = Object.keys(data.bots).map(phoneKey => ({
+                        id: phoneKey,
+                        name: `Bot_${phoneKey.slice(-4)}`, // Fallback name
+                        phone: phoneKey,
+                        status: data.bots[phoneKey].status
+                    }));
+                    
+                    // Only re-render if we are on the files view to save performance
+                    if(document.getElementById('view-files').classList.contains('active')) {
+                        botsManager.renderList();
+                    }
+                }
+            }).catch(console.error);
+    },
+
     renderList: () => {
         const container = document.getElementById('bots-list-container');
         const badge = document.getElementById('bot-count-badge');
@@ -203,9 +284,9 @@ const botsManager = {
                 <div class="bot-actions" style="align-items: center;">
                     <button class="action-btn" style="height: 32px; padding: 0 10px;" onclick="terminal.open('${bot.id}')">📋 Logs</button>
                     <div class="bot-controls">
-                        <button class="ctrl-btn play" title="Start/Resume" onclick="botsManager.changeStatus('${bot.id}', 'online')">▶</button>
-                        <button class="ctrl-btn pause" title="Pause" onclick="botsManager.changeStatus('${bot.id}', 'paused')">⏸</button>
-                        <button class="ctrl-btn stop" title="Stop" onclick="botsManager.changeStatus('${bot.id}', 'offline')">⏹</button>
+                        <button class="ctrl-btn play" title="Start/Resume" onclick="botsManager.changeStatus('${bot.id}', 'start')">▶</button>
+                        <button class="ctrl-btn stop" title="Stop" onclick="botsManager.changeStatus('${bot.id}', 'stop')">⏹</button>
+                        <button class="ctrl-btn pause" style="color:#ff5f56;" title="Delete Bot" onclick="botsManager.changeStatus('${bot.id}', 'delete')">🗑</button>
                     </div>
                 </div>
             `;
@@ -213,22 +294,22 @@ const botsManager = {
         });
     },
 
-    changeStatus: (id, newStatus) => {
-        const bot = state.bots.find(b => b.id === id);
-        if(!bot) return;
-        
-        if (bot.status === newStatus) return; // Ignore if same status
-
-        bot.status = newStatus;
-        
-        let msg = '';
-        let type = 'info';
-        if(newStatus === 'online') { msg = `Process ${id} resumed.`; type = 'success'; }
-        if(newStatus === 'paused') { msg = `Process ${id} paused/sleeping.`; type = 'warning'; }
-        if(newStatus === 'offline') { msg = `Process ${id} fully terminated.`; type = 'error'; }
-        
-        uiEngine.showToast(msg, type);
-        botsManager.renderList();
+    changeStatus: (id, action) => {
+        fetch('/api/bot/control', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ phone: id, action: action })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if(data.status === 'success') {
+                let type = action === 'delete' || action === 'stop' ? 'warning' : 'success';
+                uiEngine.showToast(data.message, type);
+                botsManager.pollServerStatus(); // Instantly fetch updated state from Python
+            } else {
+                uiEngine.showToast(data.message, 'error');
+            }
+        });
     }
 };
 
@@ -264,7 +345,7 @@ const settingsFlow = {
     }
 };
 
-// --- Admin Controls ---
+// --- Admin Controls (Wired to Python API) ---
 const adminFlow = {
     verify: () => {
         const val = document.getElementById('adminPassInput').value;
@@ -285,17 +366,22 @@ const adminFlow = {
 
     simulateLiveStats: () => {
         if(!state.isAdminAuth) return;
-        
         if(adminFlow.liveStatsInterval) clearInterval(adminFlow.liveStatsInterval);
 
         adminFlow.liveStatsInterval = setInterval(() => {
             if(!state.serverPower) return;
-            const load = Math.floor(Math.random() * (85 - 20 + 1) + 20);
-            const loadEl = document.getElementById('stat-load');
-            if(loadEl) {
-                loadEl.textContent = `${load}%`;
-                loadEl.style.color = load > 75 ? '#ff5f56' : (load > 50 ? '#ffbd2e' : '#27c93f');
-            }
+            
+            // Fetch real backend hardware stats from Python
+            fetch('/api/admin/stats')
+                .then(res => res.json())
+                .then(data => {
+                    const loadEl = document.getElementById('stat-load');
+                    if(loadEl && data.status === 'success') {
+                        loadEl.textContent = data.cpu;
+                        const loadNum = parseFloat(data.cpu);
+                        loadEl.style.color = loadNum > 75 ? '#ff5f56' : (loadNum > 50 ? '#ffbd2e' : '#27c93f');
+                    }
+                }).catch(console.error);
         }, 3000);
     },
 
@@ -323,7 +409,6 @@ const adminFlow = {
         }
     },
 
-    // --- NEW ADMIN OVERRIDE FUNCTIONS ADDED HERE ---
     uploadGlobalBackground: (event) => {
         const file = event.target.files[0];
         if(!file) return;
@@ -392,7 +477,9 @@ const adminFlow = {
     }
 };
 
-// --- Terminal Simulator ---
+// --- Terminal Simulator (Wired to Python Logs) ---
+let logPollInterval;
+
 const terminal = {
     open: (botId) => {
         document.getElementById('terminal-modal').classList.remove('hidden');
@@ -400,23 +487,43 @@ const terminal = {
         const output = document.getElementById('terminal-output');
         output.innerHTML = ''; 
         
-        const bot = state.bots.find(b => b.id === botId);
+        terminal.writeLog('Fetching live logs from Python backend...');
         
-        if (bot && bot.status === 'offline') {
-            terminal.writeLog(`ERROR: Process ${botId} is currently OFFLINE. Start the process to view live logs.`);
-            return;
-        }
+        // Fetch logs instantly, then poll every 2 seconds
+        terminal.fetchLogs(botId);
+        if(logPollInterval) clearInterval(logPollInterval);
+        logPollInterval = setInterval(() => terminal.fetchLogs(botId), 2000);
+    },
 
-        terminal.writeLog('Container boot initiated...');
-        terminal.writeLog(`Loading Telethon sessions for ${botId}...`);
-        
-        setTimeout(() => { if(!document.getElementById('terminal-modal').classList.contains('hidden')) terminal.writeLog('INFO: Connected to Telegram API.'); }, 600);
-        setTimeout(() => { if(!document.getElementById('terminal-modal').classList.contains('hidden')) terminal.writeLog('INFO: Registering event handlers (events.NewMessage)'); }, 1200);
-        setTimeout(() => { if(!document.getElementById('terminal-modal').classList.contains('hidden')) terminal.writeLog('SUCCESS: Userbot daemon is running in background.'); }, 1800);
+    fetchLogs: (botId) => {
+        fetch('/api/bot/control', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ phone: botId, action: 'logs' })
+        })
+        .then(res => res.json())
+        .then(data => {
+            const output = document.getElementById('terminal-output');
+            if(data.status === 'success' && data.logs) {
+                // Formatting raw text logs into terminal HTML
+                output.innerHTML = '';
+                const lines = data.logs.split('\n');
+                lines.forEach(line => {
+                    if(line.trim() !== '') {
+                        const el = document.createElement('div');
+                        el.className = 'terminal-line';
+                        el.textContent = line; // secure text insertion
+                        output.appendChild(el);
+                    }
+                });
+                output.scrollTop = output.scrollHeight;
+            }
+        }).catch(err => console.error("Log fetch failed", err));
     },
 
     close: () => {
         document.getElementById('terminal-modal').classList.add('hidden');
+        if(logPollInterval) clearInterval(logPollInterval);
     },
 
     writeLog: (message) => {
